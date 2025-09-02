@@ -1067,6 +1067,8 @@ void UBGraphicsScene::addPolygonItemToCurrentStroke(UBGraphicsPolygonItem* polyg
 
     mPreviousPolygonItems.append(polygonItem);
 
+    // Update only the affected region instead of redrawing the whole scene
+    update(polygonItem->sceneBoundingRect());
 }
 
 void UBGraphicsScene::eraseLineTo(const QPointF &pEndPoint, const qreal &pWidth)
@@ -1162,6 +1164,9 @@ void UBGraphicsScene::eraseLineTo(const QPointF &pEndPoint, const qreal &pWidth)
 
     if (!intersectedItems.empty())
         setModified(true);
+
+    // Refresh only the affected region
+    update(eraserBoundingRect);
 }
 
 void UBGraphicsScene::drawArcTo(const QPointF& pCenterPoint, qreal pSpanAngle)
@@ -1517,12 +1522,15 @@ void UBGraphicsScene::clearContent(clearCase pCase)
 {
     QSet<QGraphicsItem*> removedItems;
     UBGraphicsItemUndoCommand::GroupDataTable groupsMap;
+    QRectF dirtyRect;
 
     switch (pCase) {
     case clearBackground :
         if(mBackgroundObject){
+            QRectF rect = mBackgroundObject->sceneBoundingRect();
             removeItem(mBackgroundObject);
             removedItems << mBackgroundObject;
+            dirtyRect = dirtyRect.united(rect);
             mBackgroundObject = nullptr;
         }
         break;
@@ -1557,6 +1565,7 @@ void UBGraphicsScene::clearContent(clearCase pCase)
             }
 
             if(shouldDelete) {
+                QRectF rect = item->sceneBoundingRect();
                 if (itemGroup) {
                     itemGroup->removeFromGroup(item);
 
@@ -1573,13 +1582,15 @@ void UBGraphicsScene::clearContent(clearCase pCase)
 
                 curDelegate->remove(false);
                 removedItems << item;
+                dirtyRect = dirtyRect.united(rect);
             }
         }
         break;
     }
 
-    // force refresh, QT is a bit lazy and take a lot of time (nb item ^2 ?) to trigger repaint
-    update(sceneRect());
+    // refresh only the areas touched by the removal
+    if (!dirtyRect.isNull())
+        update(dirtyRect);
 
     if (mUndoRedoStackEnabled) { //should be deleted after scene own undo stack implemented
 
