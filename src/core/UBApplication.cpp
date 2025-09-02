@@ -58,7 +58,7 @@
 
 #include "gui/UBMainWindow.h"
 #include "gui/UBResources.h"
-#include "gui/UBDocumentThumbnailsView.h"
+#include "gui/UBThumbnail.h"
 #include "gui/UBStartupHintsPalette.h"
 
 #include "ui_mainWindow.h"
@@ -106,6 +106,7 @@ UBApplication::UBApplication(const QString &id, int &argc, char **argv) : Single
     setOrganizationName("Open Education Foundation");
     setOrganizationDomain("oe-f.org");
     setApplicationName("OpenBoard");
+    setDesktopFileName("ch.openboard.OpenBoard");
 
     QString version = UBVERSION;
     if(version.endsWith("."))

@@ -1,10 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Département de l'Instruction Publique (DIP-SEM)
- *
- * Copyright (C) 2013 Open Education Foundation
- *
- * Copyright (C) 2010-2013 Groupement d'Intérêt Public pour
- * l'Education Numérique en Afrique (GIP ENA)
+ * Copyright (C) 2015-2025 Département de l'Instruction Publique (DIP-SEM)
  *
  * This file is part of OpenBoard.
  *
@@ -25,33 +20,39 @@
  */
 
 
+#pragma once
+
+#include <QObject>
+
+#include <pipewire/pipewire.h>
+#include <spa/param/video/format.h>
 
 
-#ifndef UBTHUMBNAILVIEW_H_
-#define UBTHUMBNAILVIEW_H_
-
-#include <QGraphicsView>
-#include <QLabel>
-#include <QHBoxLayout>
-#include <QDebug>
-
-class UBGraphicsScene;
-
-class UBThumbnailView : public QGraphicsView
+class UBPipewireSink : public QObject
 {
     Q_OBJECT
 
-    public:
+public:
+    explicit UBPipewireSink(QObject* parent = nullptr);
+    ~UBPipewireSink();
 
-        UBThumbnailView(std::shared_ptr<UBGraphicsScene> scene, QWidget* parent =0);
-        virtual ~UBThumbnailView()
-        {
+public slots:
+    bool start(int fd, int nodeId);
 
-        }
+signals:
+    void gotImage(QImage image);
+    void streamingInterrupted();
 
-    private:
-        QHBoxLayout* mHBoxLayout;
+private:
+    void process();
+    void streamStateChanged(enum pw_stream_state old, enum pw_stream_state state, const char* error);
+    void streamParamChanged(uint32_t id, const struct spa_pod* param);
 
+private:
+    pw_thread_loop* mLoop{nullptr};
+    pw_context* mContext{nullptr};
+    pw_stream* mStream{nullptr};
+    struct spa_video_info mFormat{};
+    struct spa_hook mHook{};
 };
 
-#endif /* UBTHUMBNAILVIEW_H_ */

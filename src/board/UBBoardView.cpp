@@ -402,6 +402,8 @@ void UBBoardView::tabletEvent (QTabletEvent * event)
     QPointF scenePos = viewportTransform ().inverted ().map (tabletPos);
 
     qreal pressure = 1.0;
+    currentTool = (UBStylusTool::Enum)dc->stylusTool();
+
     if (((currentTool == UBStylusTool::Pen || currentTool == UBStylusTool::Line) && mPenPressureSensitive) ||
             (currentTool == UBStylusTool::Marker && mMarkerPressureSensitive))
         pressure = event->pressure ();
@@ -552,6 +554,14 @@ void UBBoardView::handleItemsSelection(QGraphicsItem *item)
             {
                 scene()->deselectAllItemsExcept(item);
                 scene()->updateSelectionFrame();
+
+                // calculate initial corner points
+                mCornerPoints.clear();
+                const auto bounds = UBGraphicsScene::itemRect(item);
+                mCornerPoints << item->mapToScene(bounds.topLeft());
+                mCornerPoints << item->mapToScene(bounds.topRight());
+                mCornerPoints << item->mapToScene(bounds.bottomLeft());
+                mCornerPoints << item->mapToScene(bounds.bottomRight());
             }
         }
     }
@@ -807,6 +817,7 @@ QGraphicsItem* UBBoardView::determineItemToMove(QGraphicsItem *item)
 void UBBoardView::handleItemMousePress(QMouseEvent *event)
 {
     mLastPressedMousePos = mapToScene(event->pos());
+    mFirstPressedMousePos = mLastPressedMousePos;
 
     // Determining item who will take mouse press event
     //all other items will be deselected and if all item will be deselected, then
@@ -885,13 +896,29 @@ void UBBoardView::handleItemMouseMove(QMouseEvent *event)
         // snap to grid
         if (scene()->isSnapping())
         {
-            QRectF rect = UBGraphicsScene::itemRect(movingItem);
-            Qt::Corner corner;
-            auto offset = scene()->snap(rect, &corner);
-            newPos += offset;
+            QPointF moved = scenePos - mFirstPressedMousePos;
+            std::vector<QPointF> corners;
+
+            for (const auto& cornerPoint : mCornerPoints)
+            {
+                corners.push_back(cornerPoint + moved);
+            }
+
+            int snapIndex;
+            QPointF snapVector = scene()->snap(corners, &snapIndex);
+            Qt::Corner corner = Qt::Corner(snapIndex);
+
+            if (!snapVector.isNull())
+            {
+                auto* view = UBApplication::boardController->controlView();
+                const auto angle = QLineF{corners.at(0), corners.at(1)}.angle();
+                view->updateSnapIndicator(corner, corners.at(snapIndex) + snapVector, angle);
+            }
+
+            newPos += snapVector;
             movingItem->setPos(newPos);
 
-            mLastPressedMousePos = scenePos + offset;
+            mLastPressedMousePos = scenePos + snapVector;
         }
         else
         {
@@ -977,7 +1004,7 @@ void UBBoardView::setMultiselection(bool enable)
     mMultipleSelectionIsEnabled = enable;
 }
 
-void UBBoardView::updateSnapIndicator(Qt::Corner corner, QPointF snapPoint)
+void UBBoardView::updateSnapIndicator(Qt::Corner corner, QPointF snapPoint, double angle)
 {
     if (!mSnapIndicator)
     {
@@ -985,7 +1012,7 @@ void UBBoardView::updateSnapIndicator(Qt::Corner corner, QPointF snapPoint)
         mSnapIndicator->resize(120, 120);
     }
 
-    mSnapIndicator->appear(corner, snapPoint);
+    mSnapIndicator->appear(corner, snapPoint, angle);
 }
 
 void UBBoardView::setBoxing(const QMargins& margins)
@@ -1746,6 +1773,13 @@ void UBBoardView::wheelEvent (QWheelEvent *wheelEvent)
 
     // event not handled, send it to QAbstractScrollArea to scroll with wheel event
     QAbstractScrollArea::wheelEvent(wheelEvent);
+
+#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+    // workaround: foreground not repainted after scrolling on Qt5 (fixed in Qt6)
+    // setForegroundBrush internally invokes the private function uopdateAll() unconditionally
+    setForegroundBrush(foregroundBrush());
+#endif
+
     UBApplication::applicationController->adjustDisplayView();
 }
 

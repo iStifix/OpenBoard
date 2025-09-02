@@ -69,8 +69,16 @@ target_sources(${PROJECT_NAME} PRIVATE
     UBStartupHintsPalette.h
     UBStylusPalette.cpp
     UBStylusPalette.h
-    UBThumbnailView.cpp
-    UBThumbnailView.h
+    UBThumbnail.cpp
+    UBThumbnail.h
+    UBThumbnailArranger.cpp
+    UBThumbnailArranger.h
+    UBThumbnailScene.cpp
+    UBThumbnailScene.h
+    UBThumbnailTextItem.cpp
+    UBThumbnailTextItem.h
+    UBThumbnailsView.cpp
+    UBThumbnailsView.h
     UBDocumentThumbnailsView.cpp
     UBDocumentThumbnailsView.h
     UBToolWidget.cpp
