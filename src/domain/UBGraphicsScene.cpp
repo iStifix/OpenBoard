@@ -398,13 +398,41 @@ void UBGraphicsScene::selectionChangedProcessing()
     }
 }
 
-bool UBGraphicsScene::inputDevicePress(const QPointF& scenePos, const qreal& pressure, Qt::KeyboardModifiers modifiers)
+bool UBGraphicsScene::inputDevicePress(int id, const QPointF& scenePos, const qreal& pressure, Qt::KeyboardModifiers modifiers)
+{
+    PointerState &state = mPointerStates[id];
+    loadPointerState(state);
+    bool accepted = inputDevicePressImpl(scenePos, pressure, modifiers);
+    savePointerState(state);
+    return accepted;
+}
+
+bool UBGraphicsScene::inputDeviceMove(int id, const QPointF& scenePos, const qreal& pressure, Qt::KeyboardModifiers modifiers)
+{
+    PointerState &state = mPointerStates[id];
+    loadPointerState(state);
+    bool accepted = inputDeviceMoveImpl(scenePos, pressure, modifiers);
+    savePointerState(state);
+    return accepted;
+}
+
+bool UBGraphicsScene::inputDeviceRelease(int id, int tool, Qt::KeyboardModifiers modifiers)
+{
+    PointerState &state = mPointerStates[id];
+    loadPointerState(state);
+    bool accepted = inputDeviceReleaseImpl(tool, modifiers);
+    savePointerState(state);
+    mPointerStates.remove(id);
+    return accepted;
+}
+
+bool UBGraphicsScene::inputDevicePressImpl(const QPointF& scenePos, const qreal& pressure, Qt::KeyboardModifiers modifiers)
 {
     bool accepted = false;
 
     if (mInputDeviceIsPressed) {
         qWarning() << "scene received input device pressed, without input device release, muting event as input device move";
-        accepted = inputDeviceMove(scenePos, pressure, modifiers);
+        accepted = inputDeviceMoveImpl(scenePos, pressure, modifiers);
     }
     else {
         mInputDeviceIsPressed = true;
@@ -497,7 +525,7 @@ bool UBGraphicsScene::inputDevicePress(const QPointF& scenePos, const qreal& pre
     return accepted;
 }
 
-bool UBGraphicsScene::inputDeviceMove(const QPointF& scenePos, const qreal& pressure, Qt::KeyboardModifiers modifiers)
+bool UBGraphicsScene::inputDeviceMoveImpl(const QPointF& scenePos, const qreal& pressure, Qt::KeyboardModifiers modifiers)
 {
     bool accepted = false;
 
@@ -686,7 +714,7 @@ bool UBGraphicsScene::inputDeviceMove(const QPointF& scenePos, const qreal& pres
     return accepted;
 }
 
-bool UBGraphicsScene::inputDeviceRelease(int tool, Qt::KeyboardModifiers modifiers)
+bool UBGraphicsScene::inputDeviceReleaseImpl(int tool, Qt::KeyboardModifiers modifiers)
 {
     bool accepted = false;
 
@@ -1028,6 +1056,9 @@ void UBGraphicsScene::addPolygonItemToCurrentStroke(UBGraphicsPolygonItem* polyg
     polygonItem->setStroke(mCurrentStroke);
 
     mPreviousPolygonItems.append(polygonItem);
+    
+    // Update only the affected region instead of redrawing the whole scene
+    update(polygonItem->sceneBoundingRect());
 
 }
 
@@ -1124,6 +1155,8 @@ void UBGraphicsScene::eraseLineTo(const QPointF &pEndPoint, const qreal &pWidth)
 
     if (!intersectedItems.empty())
         setModified(true);
+    // Refresh only the affected region
+    update(eraserBoundingRect);
 }
 
 void UBGraphicsScene::drawArcTo(const QPointF& pCenterPoint, qreal pSpanAngle)
@@ -1479,12 +1512,15 @@ void UBGraphicsScene::clearContent(clearCase pCase)
 {
     QSet<QGraphicsItem*> removedItems;
     UBGraphicsItemUndoCommand::GroupDataTable groupsMap;
+    QRectF dirtyRect;
 
     switch (pCase) {
     case clearBackground :
         if(mBackgroundObject){
+            QRectF rect = mBackgroundObject->sceneBoundingRect();
             removeItem(mBackgroundObject);
             removedItems << mBackgroundObject;
+            dirtyRect = dirtyRect.united(rect);
             mBackgroundObject = nullptr;
         }
         break;
@@ -1519,6 +1555,7 @@ void UBGraphicsScene::clearContent(clearCase pCase)
             }
 
             if(shouldDelete) {
+                QRectF rect = item->sceneBoundingRect();
                 if (itemGroup) {
                     itemGroup->removeFromGroup(item);
 
@@ -1535,13 +1572,15 @@ void UBGraphicsScene::clearContent(clearCase pCase)
 
                 curDelegate->remove(false);
                 removedItems << item;
+                dirtyRect = dirtyRect.united(rect);
             }
         }
         break;
     }
 
-    // force refresh, QT is a bit lazy and take a lot of time (nb item ^2 ?) to trigger repaint
-    update(sceneRect());
+    // refresh only the areas touched by the removal
+    if (!dirtyRect.isNull())
+        update(dirtyRect);
 
     if (mUndoRedoStackEnabled) { //should be deleted after scene own undo stack implemented
 
@@ -3316,4 +3355,40 @@ void UBGraphicsScene::setToolCursor(int tool)
 void UBGraphicsScene::initStroke()
 {
     mCurrentStroke = new UBGraphicsStroke(shared_from_this());
+}
+
+void UBGraphicsScene::loadPointerState(const PointerState &state)
+{
+    mInputDeviceIsPressed = state.mInputDeviceIsPressed;
+    mPreviousPoint = state.mPreviousPoint;
+    mPreviousWidth = state.mPreviousWidth;
+    mDistanceFromLastStrokePoint = state.mDistanceFromLastStrokePoint;
+    mCurrentPoint = state.mCurrentPoint;
+    mPreviousPolygonItems = state.mPreviousPolygonItems;
+    mCurrentStroke = state.mCurrentStroke;
+    mAddedItems = state.mAddedItems;
+    mRemovedItems = state.mRemovedItems;
+    mArcPolygonItem = state.mArcPolygonItem;
+    mpLastPolygon = state.mpLastPolygon;
+    mTempPolygon = state.mTempPolygon;
+    mDrawWithCompass = state.mDrawWithCompass;
+    mCurrentPolygon = state.mCurrentPolygon;
+}
+
+void UBGraphicsScene::savePointerState(PointerState &state)
+{
+    state.mInputDeviceIsPressed = mInputDeviceIsPressed;
+    state.mPreviousPoint = mPreviousPoint;
+    state.mPreviousWidth = mPreviousWidth;
+    state.mDistanceFromLastStrokePoint = mDistanceFromLastStrokePoint;
+    state.mCurrentPoint = mCurrentPoint;
+    state.mPreviousPolygonItems = mPreviousPolygonItems;
+    state.mCurrentStroke = mCurrentStroke;
+    state.mAddedItems = mAddedItems;
+    state.mRemovedItems = mRemovedItems;
+    state.mArcPolygonItem = mArcPolygonItem;
+    state.mpLastPolygon = mpLastPolygon;
+    state.mTempPolygon = mTempPolygon;
+    state.mDrawWithCompass = mDrawWithCompass;
+    state.mCurrentPolygon = mCurrentPolygon;
 }
