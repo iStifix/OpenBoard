@@ -334,30 +334,31 @@ bool UBBoardView::event (QEvent * e)
     }
     else if (e->type() == QEvent::TouchBegin
              || e->type() == QEvent::TouchUpdate
-             || e->type() == QEvent::TouchEnd)
+             || e->type() == QEvent::TouchEnd
+             || e->type() == QEvent::TouchCancel)
     {
         QTouchEvent *touchEvent = static_cast<QTouchEvent*>(e);
         if (scene())
         {
             for (const QTouchEvent::TouchPoint &tp : touchEvent->touchPoints())
             {
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+                QPointF scenePos = mapToScene(tp.position().toPoint());
+#else            
                 QPointF scenePos = mapToScene(tp.pos().toPoint());
+#endif
                 qreal pressure = tp.pressure();
                 int id = tp.id();
-                switch (e->type())
-                {
-                case QEvent::TouchBegin:
+                Qt::TouchPointStates state = tp.state();
+
+                if (state & Qt::TouchPointPressed)
                     scene()->inputDevicePress(id, scenePos, pressure);
-                    break;
-                case QEvent::TouchUpdate:
+
+                if (state & Qt::TouchPointMoved)
                     scene()->inputDeviceMove(id, scenePos, pressure);
-                    break;
-                case QEvent::TouchEnd:
+
+                if (state & Qt::TouchPointReleased || e->type() == QEvent::TouchCancel)
                     scene()->inputDeviceRelease(id);
-                    break;
-                default:
-                    break;
-                }
             }
         }
         return true;
