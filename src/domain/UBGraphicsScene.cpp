@@ -2551,7 +2551,7 @@ void UBGraphicsScene::stylusToolChanged(int tool, int previousTool)
         {
             // tool was changed while input device is pressed
             // simulate release and press to terminate previous strokes
-            inputDeviceRelease(previousTool);
+            inputDeviceRelease(0, previousTool);
             inputDevicePress(mCurrentPoint);
         }
         else if (previousTool >= 0)

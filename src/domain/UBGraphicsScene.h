@@ -525,8 +525,16 @@ signals:
 
         QHash<int, PointerState> mPointerStates;
 
+        bool inputDevicePressImpl(const QPointF& scenePos, const qreal& pressure, Qt::KeyboardModifiers modifiers);
+        bool inputDeviceMoveImpl(const QPointF& scenePos, const qreal& pressure, Qt::KeyboardModifiers modifiers);
+        bool inputDeviceReleaseImpl(int tool, Qt::KeyboardModifiers modifiers);
+
+        bool palmPressImpl(const QPointF& scenePos, const qreal& diameter);
+        bool palmMoveImpl(const QPointF& scenePos, const qreal& diameter);
+        bool palmReleaseImpl();
+
         void loadPointerState(const PointerState &state);
-        void savePointerState(PointerState &state);        
+        void savePointerState(PointerState &state);
 };
 
 
