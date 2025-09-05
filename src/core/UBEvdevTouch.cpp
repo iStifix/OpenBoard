@@ -59,8 +59,8 @@ void UBEvdevTouch::initDevice()
         ::close(fd);
     }
     if (m_fd >= 0) {
-        const libevdev_abs_info* ax = libevdev_get_abs_info(m_dev, ABS_MT_POSITION_X);
-        const libevdev_abs_info* ay = libevdev_get_abs_info(m_dev, ABS_MT_POSITION_Y);
+        const struct input_absinfo* ax = libevdev_get_abs_info(m_dev, ABS_MT_POSITION_X);
+        const struct input_absinfo* ay = libevdev_get_abs_info(m_dev, ABS_MT_POSITION_Y);
         QScreen* screen = QGuiApplication::primaryScreen();
         if (ax && ay && screen) {
             m_scaleX = screen->geometry().width() / double(ax->maximum - ax->minimum);
@@ -130,4 +130,3 @@ int UBEvdevTouch::majorNear(const QPointF& pos, int radius)
 }
 
 #endif // Q_OS_LINUX && HAVE_LIBEVDEV
-
