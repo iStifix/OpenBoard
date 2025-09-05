@@ -33,6 +33,7 @@
 #include <QtSvg>
 #include <QGraphicsView>
 #include <QGraphicsVideoItem>
+#include <QSet>
 
 #include "frameworks/UBGeometryUtils.h"
 
@@ -1148,8 +1149,11 @@ void UBGraphicsScene::eraseLineTo(const QPointF &pEndPoint, const qreal &pWidth)
     QPainterPath eraserPath;
     eraserPath.addPolygon(eraserPolygon);
 
-    // Get all the items that are intersecting with the eraser path, except the eraser itself
-    QList<QGraphicsItem*> collidItems = items(eraserBoundingRect, Qt::IntersectsItemBoundingRect);
+    // Retrieve items affected by the eraser path
+    QSet<QGraphicsItem*> fullyContained = QSet<QGraphicsItem*>::fromList(items(eraserPath, Qt::ContainsItemShape));
+    fullyContained.remove(mEraser);
+
+    QList<QGraphicsItem*> collidItems = items(eraserPath, Qt::IntersectsItemShape);
     collidItems.removeOne(mEraser);
 
     QList<UBGraphicsPolygonItem*> intersectedItems;
@@ -1157,24 +1161,24 @@ void UBGraphicsScene::eraseLineTo(const QPointF &pEndPoint, const qreal &pWidth)
     typedef QList<QPolygonF> POLYGONSLIST;
     QList<POLYGONSLIST> intersectedPolygons;
 
-    for(int i=0; i<collidItems.size(); i++)
+    for (int i = 0; i < collidItems.size(); i++)
     {
-        UBGraphicsPolygonItem *pi = qgraphicsitem_cast<UBGraphicsPolygonItem*>(collidItems[i]);
-        if(pi == NULL)
+        UBGraphicsPolygonItem *pi = qgraphicsitem_cast<UBGraphicsPolygonItem *>(collidItems[i]);
+        if (!pi)
             continue;
 
-        QPainterPath itemPainterPath;
-        itemPainterPath.addPolygon(pi->sceneTransform().map(pi->polygon()));
-
-        if (eraserPath.contains(itemPainterPath))
+        if (fullyContained.contains(pi))
         {
             // Completely remove item
             intersectedItems << pi;
             intersectedPolygons << QList<QPolygonF>();
         }
-        else if (eraserPath.intersects(itemPainterPath))
+        else
         {
+            QPainterPath itemPainterPath;
+            itemPainterPath.addPolygon(pi->sceneTransform().map(pi->polygon()));
             itemPainterPath.setFillRule(Qt::WindingFill);
+            
             // reverse eraserPath so that it has the opposite orientation of the stroke
             // necessary for punching a hole with WindingFill rule
             QPainterPath newPath = itemPainterPath.subtracted(eraserPath.toReversed());
