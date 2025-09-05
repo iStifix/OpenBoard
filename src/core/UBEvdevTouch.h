@@ -30,7 +30,6 @@ private:
         int major = 0;   // ABS_MT_TOUCH_MAJOR (девайс-единицы)
         int tracking = -1; // -1 = пустой слот, иначе активен
     };
-    QList<SlotInfo> m_slots;
 
     struct AbsRange {
         int min = 0;
