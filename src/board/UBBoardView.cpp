@@ -340,25 +340,57 @@ bool UBBoardView::event (QEvent * e)
         QTouchEvent *touchEvent = static_cast<QTouchEvent*>(e);
         if (scene())
         {
-            for (const QTouchEvent::TouchPoint &tp : touchEvent->touchPoints())
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+            const auto points = touchEvent->points();
+#else
+            const auto points = touchEvent->touchPoints();
+#endif
+            for (const auto &tp : points)
             {
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
                 QPointF scenePos = mapToScene(tp.position().toPoint());
-#else            
+                QSizeF contactSize = tp.ellipseDiameters();
+                auto state = tp.state();
+                bool pressed = state.testFlag(QEventPoint::State::Pressed);
+                bool moved = state.testFlag(QEventPoint::State::Updated);
+                bool released = state.testFlag(QEventPoint::State::Released);
+#else
                 QPointF scenePos = mapToScene(tp.pos().toPoint());
+                QSizeF contactSize = tp.rect().size();
+                Qt::TouchPointStates state = tp.state();
+                bool pressed = state & Qt::TouchPointPressed;
+                bool moved = state & Qt::TouchPointMoved;
+                bool released = state & Qt::TouchPointReleased;
 #endif
                 qreal pressure = tp.pressure();
                 int id = tp.id();
-                Qt::TouchPointStates state = tp.state();
 
-                if (state & Qt::TouchPointPressed)
+                const qreal palmThreshold = 50.0; // pixels
+                qreal diameter = qMax(contactSize.width(), contactSize.height());
+                bool isPalm = diameter > palmThreshold;
+
+                if (isPalm)
+                {
+                    if (pressed)
+                        scene()->palmPress(id, scenePos, diameter);
+
+                    if (moved)
+                        scene()->palmMove(id, scenePos, diameter);
+
+                    if (released || e->type() == QEvent::TouchCancel)
+                        scene()->palmRelease(id);
+
+                    continue;
+                }
+
+                if (pressed)
                     scene()->inputDevicePress(id, scenePos, pressure);
 
-                if (state & Qt::TouchPointMoved)
+                if (moved)
                     scene()->inputDeviceMove(id, scenePos, pressure);
 
-                if (state & Qt::TouchPointReleased || e->type() == QEvent::TouchCancel)
-                    scene()->inputDeviceRelease(id);
+                if (released || e->type() == QEvent::TouchCancel)
+                    scene()->inputDeviceRelease(id, -1, Qt::NoModifier);
             }
         }
         return true;

@@ -426,6 +426,34 @@ bool UBGraphicsScene::inputDeviceRelease(int id, int tool, Qt::KeyboardModifiers
     return accepted;
 }
 
+bool UBGraphicsScene::palmPress(int id, const QPointF& scenePos, const qreal& diameter)
+{
+    PointerState &state = mPointerStates[id];
+    loadPointerState(state);
+    bool accepted = palmPressImpl(scenePos, diameter);
+    savePointerState(state);
+    return accepted;
+}
+
+bool UBGraphicsScene::palmMove(int id, const QPointF& scenePos, const qreal& diameter)
+{
+    PointerState &state = mPointerStates[id];
+    loadPointerState(state);
+    bool accepted = palmMoveImpl(scenePos, diameter);
+    savePointerState(state);
+    return accepted;
+}
+
+bool UBGraphicsScene::palmRelease(int id)
+{
+    PointerState &state = mPointerStates[id];
+    loadPointerState(state);
+    bool accepted = palmReleaseImpl();
+    savePointerState(state);
+    mPointerStates.remove(id);
+    return accepted;
+}
+
 bool UBGraphicsScene::inputDevicePressImpl(const QPointF& scenePos, const qreal& pressure, Qt::KeyboardModifiers modifiers)
 {
     bool accepted = false;
@@ -827,6 +855,53 @@ bool UBGraphicsScene::inputDeviceReleaseImpl(int tool, Qt::KeyboardModifiers mod
     }
 
     mCurrentStroke = NULL;
+    return accepted;
+}
+
+bool UBGraphicsScene::palmPressImpl(const QPointF& scenePos, const qreal& diameter)
+{
+    bool accepted = false;
+    if (mInputDeviceIsPressed)
+    {
+        qWarning() << "scene received palm pressed, without palm release, treating as move";
+        accepted = palmMoveImpl(scenePos, diameter);
+    }
+    else
+    {
+        mInputDeviceIsPressed = true;
+        qreal eraserWidth = diameter;
+        eraserWidth /= UBApplication::boardController->systemScaleFactor();
+        eraserWidth /= UBApplication::boardController->currentZoom();
+        moveTo(scenePos);
+        eraseLineTo(scenePos, eraserWidth);
+        accepted = true;
+    }
+    return accepted;
+}
+
+bool UBGraphicsScene::palmMoveImpl(const QPointF& scenePos, const qreal& diameter)
+{
+    bool accepted = false;
+    if (mInputDeviceIsPressed)
+    {
+        qreal eraserWidth = diameter;
+        eraserWidth /= UBApplication::boardController->systemScaleFactor();
+        eraserWidth /= UBApplication::boardController->currentZoom();
+        eraseLineTo(scenePos, eraserWidth);
+        accepted = true;
+    }
+    return accepted;
+}
+
+bool UBGraphicsScene::palmReleaseImpl()
+{
+    bool accepted = false;
+    if (mInputDeviceIsPressed)
+    {
+        hideEraser();
+        mInputDeviceIsPressed = false;
+        accepted = true;
+    }
     return accepted;
 }
 

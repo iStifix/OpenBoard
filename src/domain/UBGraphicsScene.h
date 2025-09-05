@@ -144,6 +144,10 @@ class UBGraphicsScene: public UBCoreGraphicsScene, public UBItem, public std::en
         bool inputDeviceMove(int id, const QPointF& scenePos, const qreal& pressure = 1.0, Qt::KeyboardModifiers modifiers = Qt::NoModifier);
         bool inputDeviceRelease(int id, int tool = -1, Qt::KeyboardModifiers modifiers = Qt::NoModifier);
 
+        bool palmPress(int id, const QPointF& scenePos, const qreal& diameter);
+        bool palmMove(int id, const QPointF& scenePos, const qreal& diameter);
+        bool palmRelease(int id);
+
         bool inputDevicePress(const QPointF& scenePos, const qreal& pressure = 1.0, Qt::KeyboardModifiers modifiers = Qt::NoModifier)
         { return inputDevicePress(0, scenePos, pressure, modifiers); }
         bool inputDeviceMove(const QPointF& scenePos, const qreal& pressure = 1.0, Qt::KeyboardModifiers modifiers = Qt::NoModifier)
