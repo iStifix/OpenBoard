@@ -88,12 +88,12 @@ void UBEvdevTouch::initDevice()
         }
 
         // число слотов
-        int slots = 0;
+        int slotCount = 0;
         if (const input_absinfo* as = libevdev_get_abs_info(m_dev, ABS_MT_SLOT))
-            slots = as->maximum + 1;
-        if (slots <= 0) slots = 16; // запас на случай странного HID
+            slotCount = as->maximum + 1;
+        if (slotCount <= 0) slotCount = 16; // запас на случай странного HID
 
-        m_slots.resize(slots);
+        m_slots.resize(slotCount);
         for (auto& s : m_slots) {
             s.tracking = -1;
             s.x = s.y = s.major = 0;
