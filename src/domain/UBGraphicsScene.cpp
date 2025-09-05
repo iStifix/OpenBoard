@@ -1150,7 +1150,8 @@ void UBGraphicsScene::eraseLineTo(const QPointF &pEndPoint, const qreal &pWidth)
     eraserPath.addPolygon(eraserPolygon);
 
     // Retrieve items affected by the eraser path
-    QSet<QGraphicsItem*> fullyContained = QSet<QGraphicsItem*>::fromList(items(eraserPath, Qt::ContainsItemShape));
+    const auto itemsList = items(eraserPath, Qt::ContainsItemShape);
+    QSet<QGraphicsItem*> fullyContained(itemsList.cbegin(), itemsList.cend());
     fullyContained.remove(mEraser);
 
     QList<QGraphicsItem*> collidItems = items(eraserPath, Qt::IntersectsItemShape);
