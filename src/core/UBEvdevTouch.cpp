@@ -1,4 +1,3 @@
-// UBEvdevTouch.cpp
 #include "UBEvdevTouch.h"
 
 #include <QGuiApplication>
@@ -14,21 +13,19 @@
 #  endif
 #endif
 
-// ---------- Singleton ----------
 UBEvdevTouch* UBEvdevTouch::instance()
 {
     static UBEvdevTouch inst;
     return &inst;
 }
 
-// ---------- Ctor / Dtor ----------
 UBEvdevTouch::UBEvdevTouch()
 {
     initDevice();
 #ifdef Q_OS_LINUX
 #  ifdef HAVE_LIBEVDEV
     if (m_fd >= 0 && m_dev)
-        start(); // отдельный поток читает /dev/input
+        start();
 #  endif
 #endif
 }
@@ -46,7 +43,6 @@ UBEvdevTouch::~UBEvdevTouch()
 #endif
 }
 
-// ---------- Инициализация устройства ----------
 void UBEvdevTouch::initDevice()
 {
 #ifdef Q_OS_LINUX
@@ -63,7 +59,6 @@ void UBEvdevTouch::initDevice()
             continue;
         }
 
-        // ищем multitouch type-B (слоты, позиции и TOUCH_MAJOR)
         if (libevdev_has_event_code(dev, EV_ABS, ABS_MT_SLOT) &&
             libevdev_has_event_code(dev, EV_ABS, ABS_MT_POSITION_X) &&
             libevdev_has_event_code(dev, EV_ABS, ABS_MT_POSITION_Y) &&
@@ -79,7 +74,6 @@ void UBEvdevTouch::initDevice()
     }
 
     if (m_fd >= 0 && m_dev) {
-        // диапазоны координат
         if (const input_absinfo* ax = libevdev_get_abs_info(m_dev, ABS_MT_POSITION_X)) {
             m_ax.min = ax->minimum; m_ax.max = ax->maximum;
         }
@@ -87,11 +81,10 @@ void UBEvdevTouch::initDevice()
             m_ay.min = ay->minimum; m_ay.max = ay->maximum;
         }
 
-        // число слотов
         int slotCount = 0;
         if (const input_absinfo* as = libevdev_get_abs_info(m_dev, ABS_MT_SLOT))
             slotCount = as->maximum + 1;
-        if (slotCount <= 0) slotCount = 16; // запас на случай странного HID
+        if (slotCount <= 0) slotCount = 16;
 
         m_slots.resize(slotCount);
         for (auto& s : m_slots) {
@@ -103,7 +96,6 @@ void UBEvdevTouch::initDevice()
 #endif
 }
 
-// ---------- Reader-поток ----------
 void UBEvdevTouch::run()
 {
 #ifdef Q_OS_LINUX
@@ -115,7 +107,6 @@ void UBEvdevTouch::run()
     while (!isInterruptionRequested()) {
         int rc = libevdev_next_event(m_dev, LIBEVDEV_READ_FLAG_BLOCKING, &ev);
         if (rc == LIBEVDEV_READ_STATUS_SYNC) {
-            // дренируем sync пачку
             while (rc == LIBEVDEV_READ_STATUS_SYNC)
                 rc = libevdev_next_event(m_dev, LIBEVDEV_READ_FLAG_SYNC, &ev);
             continue;
@@ -141,7 +132,6 @@ void UBEvdevTouch::run()
         } else if (rc == -EAGAIN) {
             msleep(1);
         } else {
-            // устройство исчезло?
             msleep(5);
         }
     }
@@ -149,7 +139,6 @@ void UBEvdevTouch::run()
 #endif
 }
 
-// ---------- Поиск ближайшего слота и возврат TOUCH_MAJOR в пикселях ----------
 int UBEvdevTouch::majorNearGlobal(const QPoint& globalPos, int radiusPx)
 {
 #ifdef Q_OS_LINUX
@@ -157,38 +146,34 @@ int UBEvdevTouch::majorNearGlobal(const QPoint& globalPos, int radiusPx)
     if (m_fd < 0 || !m_dev || m_ax.span() <= 0 || m_ay.span() <= 0)
         return 0;
 
-    // экран под точкой
     QScreen* scr = QGuiApplication::screenAt(globalPos);
     if (!scr) scr = QGuiApplication::primaryScreen();
     if (!scr) return 0;
 
     const QRect sg = scr->geometry();
 
-    // переводим глобальные пиксели в девайс-координаты
     const double sx = double(m_ax.span()) / qMax(1, sg.width());
     const double sy = double(m_ay.span()) / qMax(1, sg.height());
 
     const double devX = m_ax.min + (globalPos.x() - sg.x()) * sx;
     const double devY = m_ay.min + (globalPos.y() - sg.y()) * sy;
 
-    const double rX = radiusPx * sx; // радиус в девайс-единицах
+    const double rX = radiusPx * sx;
     const double rY = radiusPx * sy;
 
     QMutexLocker lock(&m_mutex);
 
     int bestMajorDev = 0;
     for (const SlotInfo& s : m_slots) {
-        if (s.tracking < 0) continue; // только активные
+        if (s.tracking < 0) continue;
         const double dx = s.x - devX;
         const double dy = s.y - devY;
-        // эллипс поиска, устойчивый к несоответствию DPI по осям
         if ((dx*dx)/(rX*rX + 1e-9) + (dy*dy)/(rY*rY + 1e-9) <= 1.0) {
             if (s.major > bestMajorDev)
                 bestMajorDev = s.major;
         }
     }
 
-    // возвращаем «мажор» в пикселях экрана по X (для порога в пикселях)
     if (bestMajorDev <= 0) return 0;
     const double pxPerDevX = double(sg.width()) / qMax(1, m_ax.span());
     const int majorPx = int(bestMajorDev * pxPerDevX + 0.5);

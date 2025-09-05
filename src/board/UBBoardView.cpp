@@ -330,8 +330,8 @@ bool UBBoardView::event(QEvent* e)
         if (scene()) {
             for (const auto &tp : points) {
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
-                QPoint  local  = tp.position().toPoint();           // координаты viewport
-                QPoint  global = viewport()->mapToGlobal(local);    // глобальные пиксели
+                QPoint  local  = tp.position().toPoint();
+                QPoint  global = viewport()->mapToGlobal(local);
                 auto    state  = tp.state();
                 bool pressed   = (state == QEventPoint::Pressed);
                 bool moved     = (state == QEventPoint::Updated);
@@ -349,9 +349,8 @@ bool UBBoardView::event(QEvent* e)
                 qreal pressure = tp.pressure();
                 int   id       = tp.id();
 
-                // читаем реальный TOUCH_MAJOR в пикселях, рядом с точкой
                 const int searchRadiusPx  = 80;   // радиус поиска соответствующего слота
-                const int palmThresholdPx = 160;  // ~150–220 для панели
+                const int palmThresholdPx = 130;  // ~120–220 для панели
                 int diameterPx = UBEvdevTouch::instance()->majorNearGlobal(global, searchRadiusPx);
 
                 bool isPalm = mPalmContacts.contains(id);
