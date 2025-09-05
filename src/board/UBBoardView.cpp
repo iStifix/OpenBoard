@@ -350,10 +350,10 @@ bool UBBoardView::event (QEvent * e)
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
                 QPointF scenePos = mapToScene(tp.position().toPoint());
                 QSizeF contactSize = tp.ellipseDiameters();
-                auto state = tp.state();
-                bool pressed = state.testFlag(QEventPoint::State::Pressed);
-                bool moved = state.testFlag(QEventPoint::State::Updated);
-                bool released = state.testFlag(QEventPoint::State::Released);
+                QEventPoint::State state = tp.state();
+                bool pressed = state == QEventPoint::State::Pressed;
+                bool moved = state == QEventPoint::State::Updated;
+                bool released = state == QEventPoint::State::Released;
 #else
                 QPointF scenePos = mapToScene(tp.pos().toPoint());
                 QSizeF contactSize = tp.rect().size();
