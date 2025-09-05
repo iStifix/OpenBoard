@@ -155,6 +155,9 @@ private:
     bool mMarkerPressureSensitive;
     bool mUseHighResTabletEvent;
 
+    QSet<int> mPalmContacts;
+    QSet<int> mActiveTouches;
+
     QRubberBand *mRubberBand;
     bool mIsCreatingTextZone;
     bool mIsCreatingSceneGrabZone;

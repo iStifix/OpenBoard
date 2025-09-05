@@ -56,6 +56,7 @@
 #include "gui/UBMainWindow.h"
 #include "gui/UBSnapIndicator.h"
 #include "gui/UBDocumentThumbnailsView.h"
+#include "core/UBEvdevTouch.h"
 
 #include "board/UBBoardController.h"
 #include "board/UBBoardPaletteManager.h"
@@ -176,6 +177,11 @@ void UBBoardView::init ()
     setAcceptDrops (true);
     setAttribute(Qt::WA_AcceptTouchEvents, true);
     viewport()->setAttribute(Qt::WA_AcceptTouchEvents, true);
+    setFocusPolicy(Qt::StrongFocus);
+    
+    ungrabGesture(Qt::SwipeGesture);
+    ungrabGesture(Qt::PinchGesture);
+    ungrabGesture(Qt::PanGesture);
 
     mTabletStylusIsPressed = false;
     mMouseButtonIsPressed = false;
@@ -308,95 +314,97 @@ void UBBoardView::keyPressEvent (QKeyEvent *event)
 }
 
 
-bool UBBoardView::event (QEvent * e)
+bool UBBoardView::event(QEvent* e)
 {
-    if (e->type () == QEvent::Gesture)
+    if (e->type()==QEvent::TouchBegin
+     || e->type()==QEvent::TouchUpdate
+     || e->type()==QEvent::TouchEnd
+     || e->type()==QEvent::TouchCancel)
     {
-        QGestureEvent *gestureEvent = dynamic_cast<QGestureEvent *> (e);
-        if (gestureEvent)
-        {
-            QSwipeGesture* swipe = dynamic_cast<QSwipeGesture*> (gestureEvent->gesture (Qt::SwipeGesture));
-            if (swipe)
-            {
-                if (swipe->horizontalDirection () == QSwipeGesture::Left)
-                {
-                    mController->previousScene ();
-                    gestureEvent->setAccepted (swipe, true);
-                }
-
-                if (swipe->horizontalDirection () == QSwipeGesture::Right)
-                {
-                    mController->nextScene ();
-                    gestureEvent->setAccepted (swipe, true);
-                }
-            }
-        }
-    }
-    else if (e->type() == QEvent::TouchBegin
-             || e->type() == QEvent::TouchUpdate
-             || e->type() == QEvent::TouchEnd
-             || e->type() == QEvent::TouchCancel)
-    {
-        QTouchEvent *touchEvent = static_cast<QTouchEvent*>(e);
-        if (scene())
-        {
+        QTouchEvent* touchEvent = static_cast<QTouchEvent*>(e);
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
-            const auto points = touchEvent->points();
+        const auto points = touchEvent->points();
 #else
-            const auto points = touchEvent->touchPoints();
+        const auto points = touchEvent->touchPoints();
 #endif
-            for (const auto &tp : points)
-            {
+        if (scene()) {
+            for (const auto &tp : points) {
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
                 QPointF scenePos = mapToScene(tp.position().toPoint());
-                QSizeF contactSize = tp.ellipseDiameters();
-                QEventPoint::State state = tp.state();
-                bool pressed = state == QEventPoint::State::Pressed;
-                bool moved = state == QEventPoint::State::Updated;
-                bool released = state == QEventPoint::State::Released;
+                QSizeF  contactSize = tp.ellipseDiameters();
+                auto    state = tp.state();
+                bool pressed  = state == QEventPoint::Pressed;
+                bool moved    = state == QEventPoint::Updated;
+                bool released = state == QEventPoint::Released;
 #else
                 QPointF scenePos = mapToScene(tp.pos().toPoint());
-                QSizeF contactSize = tp.rect().size();
-                Qt::TouchPointStates state = tp.state();
-                bool pressed = state & Qt::TouchPointPressed;
-                bool moved = state & Qt::TouchPointMoved;
+                QSizeF  contactSize = tp.rect().size();
+                auto    state = tp.state();
+                bool pressed  = state & Qt::TouchPointPressed;
+                bool moved    = state & Qt::TouchPointMoved;
                 bool released = state & Qt::TouchPointReleased;
 #endif
                 qreal pressure = tp.pressure();
-                int id = tp.id();
+                int   id       = tp.id();
 
-                const qreal palmThreshold = 50.0; // pixels
+                const qreal palmThreshold = 30.0; // pixels
                 qreal diameter = qMax(contactSize.width(), contactSize.height());
-                bool isPalm = diameter > palmThreshold;
 
-                if (isPalm)
-                {
-                    if (pressed)
-                        scene()->palmPress(id, scenePos, diameter);
+                if (diameter <= 0.0)
+                    diameter = UBEvdevTouch::instance()->majorNear(scenePos, 60);
 
-                    if (moved)
-                        scene()->palmMove(id, scenePos, diameter);
+                bool isPalm = mPalmContacts.contains(id);
 
-                    if (released || e->type() == QEvent::TouchCancel)
+                if (pressed) {
+                    isPalm = diameter > palmThreshold;
+                    if (isPalm)
+                        mPalmContacts.insert(id);
+                }
+
+                if (released || e->type() == QEvent::TouchCancel) {
+                    if (isPalm)
                         scene()->palmRelease(id);
-
+                    else
+                        scene()->inputDeviceRelease(id, -1, Qt::NoModifier);
+                    mPalmContacts.remove(id);
                     continue;
                 }
 
-                if (pressed)
-                    scene()->inputDevicePress(id, scenePos, pressure);
+                if (isPalm) {
+                    if (pressed)
+                        scene()->palmPress(id, scenePos, diameter);
+                    if (moved)
+                        scene()->palmMove(id, scenePos, diameter);
+                    continue;
+                }
 
-                if (moved)
-                    scene()->inputDeviceMove(id, scenePos, pressure);
-
-                if (released || e->type() == QEvent::TouchCancel)
-                    scene()->inputDeviceRelease(id, -1, Qt::NoModifier);
+                if (pressed) scene()->inputDevicePress(id, scenePos, pressure);
+                if (moved)   scene()->inputDeviceMove(id, scenePos, pressure);
             }
         }
+        e->accept();
         return true;
     }
 
-    return QGraphicsView::event (e);
+    if (e->type()==QEvent::Gesture || e->type()==QEvent::NativeGesture) {
+    
+        e->accept();
+        return true;
+
+        /*
+        if (mActiveTouches.isEmpty()) {
+            if (auto* ge = static_cast<QGestureEvent*>(e)) {
+                if (auto* swipe = static_cast<QSwipeGesture*>(ge->gesture(Qt::SwipeGesture))) {
+                    if (swipe->horizontalDirection()==QSwipeGesture::Left)  { mController->previousScene(); ge->accept(swipe); return true; }
+                    if (swipe->horizontalDirection()==QSwipeGesture::Right) { mController->nextScene();     ge->accept(swipe); return true; }
+                }
+            }
+        }
+        e->accept(); return true;
+        */
+    }
+
+    return QGraphicsView::event(e);
 }
 
 void UBBoardView::tabletEvent (QTabletEvent * event)
