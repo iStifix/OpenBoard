@@ -348,10 +348,7 @@ bool UBBoardView::event(QEvent* e)
                 int   id       = tp.id();
 
                 const qreal palmThreshold = 30.0; // pixels
-                qreal diameter = qMax(contactSize.width(), contactSize.height());
-
-                if (diameter <= 0.0)
-                    diameter = UBEvdevTouch::instance()->majorNear(scenePos, 60);
+                qreal diameter = UBEvdevTouch::instance()->majorNear(scenePos, 60);
 
                 bool isPalm = mPalmContacts.contains(id);
 
