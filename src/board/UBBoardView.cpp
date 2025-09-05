@@ -176,7 +176,7 @@ void UBBoardView::init ()
     setHorizontalScrollBarPolicy (Qt::ScrollBarAlwaysOff);
     setAcceptDrops (true);
     setAttribute(Qt::WA_AcceptTouchEvents, true);
-    viewport()->setAttribute(Qt::WA_AcceptTouchEvents, true);
+    if (viewport()) viewport()->setAttribute(Qt::WA_AcceptTouchEvents, true);
     setFocusPolicy(Qt::StrongFocus);
     
     ungrabGesture(Qt::SwipeGesture);
@@ -330,48 +330,50 @@ bool UBBoardView::event(QEvent* e)
         if (scene()) {
             for (const auto &tp : points) {
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
-                QPointF scenePos = mapToScene(tp.position().toPoint());
-                QSizeF  contactSize = tp.ellipseDiameters();
-                auto    state = tp.state();
-                bool pressed  = state == QEventPoint::Pressed;
-                bool moved    = state == QEventPoint::Updated;
-                bool released = state == QEventPoint::Released;
+                QPoint  local  = tp.position().toPoint();           // координаты viewport
+                QPoint  global = viewport()->mapToGlobal(local);    // глобальные пиксели
+                auto    state  = tp.state();
+                bool pressed   = (state == QEventPoint::Pressed);
+                bool moved     = (state == QEventPoint::Updated);
+                bool released  = (state == QEventPoint::Released);
+                QPointF scenePos = mapToScene(local);
 #else
-                QPointF scenePos = mapToScene(tp.pos().toPoint());
-                QSizeF  contactSize = tp.rect().size();
-                auto    state = tp.state();
-                bool pressed  = state & Qt::TouchPointPressed;
-                bool moved    = state & Qt::TouchPointMoved;
-                bool released = state & Qt::TouchPointReleased;
+                QPoint  local  = tp.pos().toPoint();
+                QPoint  global = viewport()->mapToGlobal(local);
+                auto    state  = tp.state();
+                bool pressed   = (state & Qt::TouchPointPressed);
+                bool moved     = (state & Qt::TouchPointMoved);
+                bool released  = (state & Qt::TouchPointReleased);
+                QPointF scenePos = mapToScene(local);
 #endif
                 qreal pressure = tp.pressure();
                 int   id       = tp.id();
 
-                const qreal palmThreshold = 30.0; // pixels
-                qreal diameter = UBEvdevTouch::instance()->majorNear(scenePos, 60);
+                // читаем реальный TOUCH_MAJOR в пикселях, рядом с точкой
+                const int searchRadiusPx  = 80;   // радиус поиска соответствующего слота
+                const int palmThresholdPx = 160;  // ~150–220 для панели
+                int diameterPx = UBEvdevTouch::instance()->majorNearGlobal(global, searchRadiusPx);
 
                 bool isPalm = mPalmContacts.contains(id);
+                
+                qDebug() << "majorPx=" << diameterPx << " pressed=" << pressed
+                  << " id=" << id << " global=" << global;
 
                 if (pressed) {
-                    isPalm = diameter > palmThreshold;
-                    if (isPalm)
-                        mPalmContacts.insert(id);
+                    isPalm = (diameterPx >= palmThresholdPx);
+                    if (isPalm) mPalmContacts.insert(id);
                 }
 
                 if (released || e->type() == QEvent::TouchCancel) {
-                    if (isPalm)
-                        scene()->palmRelease(id);
-                    else
-                        scene()->inputDeviceRelease(id, -1, Qt::NoModifier);
+                    if (isPalm) scene()->palmRelease(id);
+                    else        scene()->inputDeviceRelease(id, -1, Qt::NoModifier);
                     mPalmContacts.remove(id);
                     continue;
                 }
 
                 if (isPalm) {
-                    if (pressed)
-                        scene()->palmPress(id, scenePos, diameter);
-                    if (moved)
-                        scene()->palmMove(id, scenePos, diameter);
+                    if (pressed) scene()->palmPress(id, scenePos, diameterPx);
+                    if (moved)   scene()->palmMove(id, scenePos, diameterPx);
                     continue;
                 }
 
@@ -383,22 +385,10 @@ bool UBBoardView::event(QEvent* e)
         return true;
     }
 
+    // 2) Любые жесты Qt — глушим (чтобы не мешали мульти-тачу)
     if (e->type()==QEvent::Gesture || e->type()==QEvent::NativeGesture) {
-    
         e->accept();
         return true;
-
-        /*
-        if (mActiveTouches.isEmpty()) {
-            if (auto* ge = static_cast<QGestureEvent*>(e)) {
-                if (auto* swipe = static_cast<QSwipeGesture*>(ge->gesture(Qt::SwipeGesture))) {
-                    if (swipe->horizontalDirection()==QSwipeGesture::Left)  { mController->previousScene(); ge->accept(swipe); return true; }
-                    if (swipe->horizontalDirection()==QSwipeGesture::Right) { mController->nextScene();     ge->accept(swipe); return true; }
-                }
-            }
-        }
-        e->accept(); return true;
-        */
     }
 
     return QGraphicsView::event(e);
