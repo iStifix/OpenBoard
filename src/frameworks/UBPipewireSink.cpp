@@ -41,8 +41,26 @@ UBPipewireSink::UBPipewireSink(QObject* parent)
 UBPipewireSink::~UBPipewireSink()
 {
     qDebug() << "UBPipewireSink: stop threaded loop";
+
+    if (!mLoop)
+        return;
+
     pw_thread_loop_stop(mLoop);
+
+    if (mStream)
+    {
+        pw_stream_destroy(mStream);
+        mStream = nullptr;
+    }
+
+    if (mContext)
+    {
+        pw_context_destroy(mContext);
+        mContext = nullptr;
+    }
+
     pw_thread_loop_destroy(mLoop);
+    mLoop = nullptr;
 }
 
 bool UBPipewireSink::start(int fd, int nodeId)
