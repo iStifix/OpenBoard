@@ -1,4 +1,9 @@
-HEADERS += src/gui/UBThumbnailView.h \
+HEADERS +=  \
+    src/gui/UBThumbnail.h \
+    src/gui/UBThumbnailArranger.h \
+    src/gui/UBThumbnailScene.h \
+    src/gui/UBThumbnailTextItem.h \
+    src/gui/UBThumbnailsView.h \
     $$PWD/UBStartupHintsPalette.h \
     src/gui/UBFloatingPalette.h \
     src/gui/UBToolbarButtonGroup.h \
@@ -42,7 +47,12 @@ HEADERS += src/gui/UBThumbnailView.h \
     src/gui/UBBackgroundPalette.h \
     src/gui/UBBoardThumbnailsView.h \
     src/gui/UBSnapIndicator.h
-SOURCES += src/gui/UBThumbnailView.cpp \
+SOURCES +=  \
+    src/gui/UBThumbnail.cpp \
+    src/gui/UBThumbnailArranger.cpp \
+    src/gui/UBThumbnailScene.cpp \
+    src/gui/UBThumbnailTextItem.cpp \
+    src/gui/UBThumbnailsView.cpp \
     $$PWD/UBStartupHintsPalette.cpp \
     src/gui/UBFloatingPalette.cpp \
     src/gui/UBToolbarButtonGroup.cpp \

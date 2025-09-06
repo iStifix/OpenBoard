@@ -33,6 +33,7 @@
 #include <QtGui>
 #include <QtXml>
 #include <QListView>
+#include <QTouchEvent>
 
 #include "UBDrawingController.h"
 
@@ -55,6 +56,7 @@
 #include "gui/UBMainWindow.h"
 #include "gui/UBSnapIndicator.h"
 #include "gui/UBDocumentThumbnailsView.h"
+#include "core/UBEvdevTouch.h"
 
 #include "board/UBBoardController.h"
 #include "board/UBBoardPaletteManager.h"
@@ -173,6 +175,13 @@ void UBBoardView::init ()
     setVerticalScrollBarPolicy (Qt::ScrollBarAlwaysOff);
     setHorizontalScrollBarPolicy (Qt::ScrollBarAlwaysOff);
     setAcceptDrops (true);
+    setAttribute(Qt::WA_AcceptTouchEvents, true);
+    if (viewport()) viewport()->setAttribute(Qt::WA_AcceptTouchEvents, true);
+    setFocusPolicy(Qt::StrongFocus);
+    
+    ungrabGesture(Qt::SwipeGesture);
+    ungrabGesture(Qt::PinchGesture);
+    ungrabGesture(Qt::PanGesture);
 
     mTabletStylusIsPressed = false;
     mMouseButtonIsPressed = false;
@@ -305,32 +314,83 @@ void UBBoardView::keyPressEvent (QKeyEvent *event)
 }
 
 
-bool UBBoardView::event (QEvent * e)
+bool UBBoardView::event(QEvent* e)
 {
-    if (e->type () == QEvent::Gesture)
+    if (e->type()==QEvent::TouchBegin
+     || e->type()==QEvent::TouchUpdate
+     || e->type()==QEvent::TouchEnd
+     || e->type()==QEvent::TouchCancel)
     {
-        QGestureEvent *gestureEvent = dynamic_cast<QGestureEvent *> (e);
-        if (gestureEvent)
-        {
-            QSwipeGesture* swipe = dynamic_cast<QSwipeGesture*> (gestureEvent->gesture (Qt::SwipeGesture));
-            if (swipe)
-            {
-                if (swipe->horizontalDirection () == QSwipeGesture::Left)
-                {
-                    mController->previousScene ();
-                    gestureEvent->setAccepted (swipe, true);
+        QTouchEvent* touchEvent = static_cast<QTouchEvent*>(e);
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+        const auto points = touchEvent->points();
+#else
+        const auto points = touchEvent->touchPoints();
+#endif
+        if (scene()) {
+            for (const auto &tp : points) {
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+                QPoint  local  = tp.position().toPoint();
+                QPoint  global = viewport()->mapToGlobal(local);
+                auto    state  = tp.state();
+                bool pressed   = (state == QEventPoint::Pressed);
+                bool moved     = (state == QEventPoint::Updated);
+                bool released  = (state == QEventPoint::Released);
+                QPointF scenePos = mapToScene(local);
+#else
+                QPoint  local  = tp.pos().toPoint();
+                QPoint  global = viewport()->mapToGlobal(local);
+                auto    state  = tp.state();
+                bool pressed   = (state & Qt::TouchPointPressed);
+                bool moved     = (state & Qt::TouchPointMoved);
+                bool released  = (state & Qt::TouchPointReleased);
+                QPointF scenePos = mapToScene(local);
+#endif
+                qreal pressure = tp.pressure();
+                int   id       = tp.id();
+
+                const int searchRadiusPx  = 80;   // радиус поиска соответствующего слота
+                const int palmThresholdPx = 130;  // ~120–220 для панели
+                int diameterPx = UBEvdevTouch::instance()->majorNearGlobal(global, searchRadiusPx);
+
+                bool isPalm = mPalmContacts.contains(id);
+                
+                qDebug() << "majorPx=" << diameterPx << " pressed=" << pressed
+                  << " id=" << id << " global=" << global;
+
+                if (pressed) {
+                    isPalm = (diameterPx >= palmThresholdPx);
+                    if (isPalm) mPalmContacts.insert(id);
                 }
 
-                if (swipe->horizontalDirection () == QSwipeGesture::Right)
-                {
-                    mController->nextScene ();
-                    gestureEvent->setAccepted (swipe, true);
+                if (released || e->type() == QEvent::TouchCancel) {
+                    if (isPalm) scene()->palmRelease(id);
+                    else        scene()->inputDeviceRelease(id, -1, Qt::NoModifier);
+                    mPalmContacts.remove(id);
+                    continue;
                 }
+
+                if (isPalm) {
+                    if (pressed) scene()->palmPress(id, scenePos, diameterPx);
+                    if (moved)   scene()->palmMove(id, scenePos, diameterPx);
+                    continue;
+                }
+
+                if (pressed) scene()->inputDevicePress(id, scenePos, pressure);
+                if (moved)   scene()->inputDeviceMove(id, scenePos, pressure);
             }
         }
+        e->accept();
+        return true;
     }
 
-    return QGraphicsView::event (e);
+    // 2) Любые жесты Qt — глушим (чтобы не мешали мульти-тачу)
+    if (e->type()==QEvent::Gesture || e->type()==QEvent::NativeGesture) {
+        e->accept();
+        return true;
+    }
+
+    return QGraphicsView::event(e);
 }
 
 void UBBoardView::tabletEvent (QTabletEvent * event)
@@ -369,6 +429,8 @@ void UBBoardView::tabletEvent (QTabletEvent * event)
     QPointF scenePos = viewportTransform ().inverted ().map (tabletPos);
 
     qreal pressure = 1.0;
+    currentTool = (UBStylusTool::Enum)dc->stylusTool();
+
     if (((currentTool == UBStylusTool::Pen || currentTool == UBStylusTool::Line) && mPenPressureSensitive) ||
             (currentTool == UBStylusTool::Marker && mMarkerPressureSensitive))
         pressure = event->pressure ();
@@ -519,6 +581,14 @@ void UBBoardView::handleItemsSelection(QGraphicsItem *item)
             {
                 scene()->deselectAllItemsExcept(item);
                 scene()->updateSelectionFrame();
+
+                // calculate initial corner points
+                mCornerPoints.clear();
+                const auto bounds = UBGraphicsScene::itemRect(item);
+                mCornerPoints << item->mapToScene(bounds.topLeft());
+                mCornerPoints << item->mapToScene(bounds.topRight());
+                mCornerPoints << item->mapToScene(bounds.bottomLeft());
+                mCornerPoints << item->mapToScene(bounds.bottomRight());
             }
         }
     }
@@ -774,6 +844,7 @@ QGraphicsItem* UBBoardView::determineItemToMove(QGraphicsItem *item)
 void UBBoardView::handleItemMousePress(QMouseEvent *event)
 {
     mLastPressedMousePos = mapToScene(event->pos());
+    mFirstPressedMousePos = mLastPressedMousePos;
 
     // Determining item who will take mouse press event
     //all other items will be deselected and if all item will be deselected, then
@@ -852,13 +923,29 @@ void UBBoardView::handleItemMouseMove(QMouseEvent *event)
         // snap to grid
         if (scene()->isSnapping())
         {
-            QRectF rect = UBGraphicsScene::itemRect(movingItem);
-            Qt::Corner corner;
-            auto offset = scene()->snap(rect, &corner);
-            newPos += offset;
+            QPointF moved = scenePos - mFirstPressedMousePos;
+            std::vector<QPointF> corners;
+
+            for (const auto& cornerPoint : mCornerPoints)
+            {
+                corners.push_back(cornerPoint + moved);
+            }
+
+            int snapIndex;
+            QPointF snapVector = scene()->snap(corners, &snapIndex);
+            Qt::Corner corner = Qt::Corner(snapIndex);
+
+            if (!snapVector.isNull())
+            {
+                auto* view = UBApplication::boardController->controlView();
+                const auto angle = QLineF{corners.at(0), corners.at(1)}.angle();
+                view->updateSnapIndicator(corner, corners.at(snapIndex) + snapVector, angle);
+            }
+
+            newPos += snapVector;
             movingItem->setPos(newPos);
 
-            mLastPressedMousePos = scenePos + offset;
+            mLastPressedMousePos = scenePos + snapVector;
         }
         else
         {
@@ -944,7 +1031,7 @@ void UBBoardView::setMultiselection(bool enable)
     mMultipleSelectionIsEnabled = enable;
 }
 
-void UBBoardView::updateSnapIndicator(Qt::Corner corner, QPointF snapPoint)
+void UBBoardView::updateSnapIndicator(Qt::Corner corner, QPointF snapPoint, double angle)
 {
     if (!mSnapIndicator)
     {
@@ -952,7 +1039,7 @@ void UBBoardView::updateSnapIndicator(Qt::Corner corner, QPointF snapPoint)
         mSnapIndicator->resize(120, 120);
     }
 
-    mSnapIndicator->appear(corner, snapPoint);
+    mSnapIndicator->appear(corner, snapPoint, angle);
 }
 
 void UBBoardView::setBoxing(const QMargins& margins)
@@ -1713,6 +1800,13 @@ void UBBoardView::wheelEvent (QWheelEvent *wheelEvent)
 
     // event not handled, send it to QAbstractScrollArea to scroll with wheel event
     QAbstractScrollArea::wheelEvent(wheelEvent);
+
+#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+    // workaround: foreground not repainted after scrolling on Qt5 (fixed in Qt6)
+    // setForegroundBrush internally invokes the private function uopdateAll() unconditionally
+    setForegroundBrush(foregroundBrush());
+#endif
+
     UBApplication::applicationController->adjustDisplayView();
 }
 

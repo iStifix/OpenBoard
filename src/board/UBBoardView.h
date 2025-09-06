@@ -67,7 +67,7 @@ public:
     bool isMultipleSelectionEnabled() { return mMultipleSelectionIsEnabled; }
 
     void setBoxing(const QMargins& margins);
-    void updateSnapIndicator(Qt::Corner corner, QPointF snapPoint);
+    void updateSnapIndicator(Qt::Corner corner, QPointF snapPoint, double angle = 0);
 
     // work around for handling tablet events on MAC OS with Qt 4.8.0 and above
 #if defined(Q_OS_OSX)
@@ -155,6 +155,9 @@ private:
     bool mMarkerPressureSensitive;
     bool mUseHighResTabletEvent;
 
+    QSet<int> mPalmContacts;
+    QSet<int> mActiveTouches;
+
     QRubberBand *mRubberBand;
     bool mIsCreatingTextZone;
     bool mIsCreatingSceneGrabZone;
@@ -165,8 +168,9 @@ private:
     bool mOkOnWidget;
 
     bool mWidgetMoved;
+    QPointF mFirstPressedMousePos;
     QPointF mLastPressedMousePos;
-
+    QList<QPointF> mCornerPoints;
 
     /* when an item is moved around, the tracking must stop if the object is deleted */
     QGraphicsItem *_movingItem;

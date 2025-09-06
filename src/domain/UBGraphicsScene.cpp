@@ -33,6 +33,7 @@
 #include <QtSvg>
 #include <QGraphicsView>
 #include <QGraphicsVideoItem>
+#include <QSet>
 
 #include "frameworks/UBGeometryUtils.h"
 
@@ -398,23 +399,69 @@ void UBGraphicsScene::selectionChangedProcessing()
     }
 }
 
-void UBGraphicsScene::setLastCenter(QPointF center)
+bool UBGraphicsScene::inputDevicePress(int id, const QPointF& scenePos, const qreal& pressure, Qt::KeyboardModifiers modifiers)
 {
-    mViewState.setLastSceneCenter(center);
+    PointerState &state = mPointerStates[id];
+    loadPointerState(state);
+    bool accepted = inputDevicePressImpl(scenePos, pressure, modifiers);
+    savePointerState(state);
+    return accepted;
 }
 
-QPointF UBGraphicsScene::lastCenter()
+bool UBGraphicsScene::inputDeviceMove(int id, const QPointF& scenePos, const qreal& pressure, Qt::KeyboardModifiers modifiers)
 {
-    return mViewState.lastSceneCenter();
+    PointerState &state = mPointerStates[id];
+    loadPointerState(state);
+    bool accepted = inputDeviceMoveImpl(scenePos, pressure, modifiers);
+    savePointerState(state);
+    return accepted;
 }
 
-bool UBGraphicsScene::inputDevicePress(const QPointF& scenePos, const qreal& pressure, Qt::KeyboardModifiers modifiers)
+bool UBGraphicsScene::inputDeviceRelease(int id, int tool, Qt::KeyboardModifiers modifiers)
+{
+    PointerState &state = mPointerStates[id];
+    loadPointerState(state);
+    bool accepted = inputDeviceReleaseImpl(tool, modifiers);
+    savePointerState(state);
+    mPointerStates.remove(id);
+    return accepted;
+}
+
+bool UBGraphicsScene::palmPress(int id, const QPointF& scenePos, const qreal& diameter)
+{
+    PointerState &state = mPointerStates[id];
+    loadPointerState(state);
+    bool accepted = palmPressImpl(scenePos, diameter);
+    savePointerState(state);
+    return accepted;
+}
+
+bool UBGraphicsScene::palmMove(int id, const QPointF& scenePos, const qreal& diameter)
+{
+    PointerState &state = mPointerStates[id];
+    loadPointerState(state);
+    bool accepted = palmMoveImpl(scenePos, diameter);
+    savePointerState(state);
+    return accepted;
+}
+
+bool UBGraphicsScene::palmRelease(int id)
+{
+    PointerState &state = mPointerStates[id];
+    loadPointerState(state);
+    bool accepted = palmReleaseImpl();
+    savePointerState(state);
+    mPointerStates.remove(id);
+    return accepted;
+}
+
+bool UBGraphicsScene::inputDevicePressImpl(const QPointF& scenePos, const qreal& pressure, Qt::KeyboardModifiers modifiers)
 {
     bool accepted = false;
 
     if (mInputDeviceIsPressed) {
         qWarning() << "scene received input device pressed, without input device release, muting event as input device move";
-        accepted = inputDeviceMove(scenePos, pressure, modifiers);
+        accepted = inputDeviceMoveImpl(scenePos, pressure, modifiers);
     }
     else {
         mInputDeviceIsPressed = true;
@@ -507,7 +554,7 @@ bool UBGraphicsScene::inputDevicePress(const QPointF& scenePos, const qreal& pre
     return accepted;
 }
 
-bool UBGraphicsScene::inputDeviceMove(const QPointF& scenePos, const qreal& pressure, Qt::KeyboardModifiers modifiers)
+bool UBGraphicsScene::inputDeviceMoveImpl(const QPointF& scenePos, const qreal& pressure, Qt::KeyboardModifiers modifiers)
 {
     bool accepted = false;
 
@@ -696,7 +743,7 @@ bool UBGraphicsScene::inputDeviceMove(const QPointF& scenePos, const qreal& pres
     return accepted;
 }
 
-bool UBGraphicsScene::inputDeviceRelease(int tool, Qt::KeyboardModifiers modifiers)
+bool UBGraphicsScene::inputDeviceReleaseImpl(int tool, Qt::KeyboardModifiers modifiers)
 {
     bool accepted = false;
 
@@ -809,6 +856,53 @@ bool UBGraphicsScene::inputDeviceRelease(int tool, Qt::KeyboardModifiers modifie
     }
 
     mCurrentStroke = NULL;
+    return accepted;
+}
+
+bool UBGraphicsScene::palmPressImpl(const QPointF& scenePos, const qreal& diameter)
+{
+    bool accepted = false;
+    if (mInputDeviceIsPressed)
+    {
+        qWarning() << "scene received palm pressed, without palm release, treating as move";
+        accepted = palmMoveImpl(scenePos, diameter);
+    }
+    else
+    {
+        mInputDeviceIsPressed = true;
+        qreal eraserWidth = diameter;
+        eraserWidth /= UBApplication::boardController->systemScaleFactor();
+        eraserWidth /= UBApplication::boardController->currentZoom();
+        moveTo(scenePos);
+        eraseLineTo(scenePos, eraserWidth);
+        accepted = true;
+    }
+    return accepted;
+}
+
+bool UBGraphicsScene::palmMoveImpl(const QPointF& scenePos, const qreal& diameter)
+{
+    bool accepted = false;
+    if (mInputDeviceIsPressed)
+    {
+        qreal eraserWidth = diameter;
+        eraserWidth /= UBApplication::boardController->systemScaleFactor();
+        eraserWidth /= UBApplication::boardController->currentZoom();
+        eraseLineTo(scenePos, eraserWidth);
+        accepted = true;
+    }
+    return accepted;
+}
+
+bool UBGraphicsScene::palmReleaseImpl()
+{
+    bool accepted = false;
+    if (mInputDeviceIsPressed)
+    {
+        hideEraser();
+        mInputDeviceIsPressed = false;
+        accepted = true;
+    }
     return accepted;
 }
 
@@ -1038,6 +1132,9 @@ void UBGraphicsScene::addPolygonItemToCurrentStroke(UBGraphicsPolygonItem* polyg
     polygonItem->setStroke(mCurrentStroke);
 
     mPreviousPolygonItems.append(polygonItem);
+    
+    // Update only the affected region instead of redrawing the whole scene
+    update(polygonItem->sceneBoundingRect());
 
 }
 
@@ -1052,8 +1149,12 @@ void UBGraphicsScene::eraseLineTo(const QPointF &pEndPoint, const qreal &pWidth)
     QPainterPath eraserPath;
     eraserPath.addPolygon(eraserPolygon);
 
-    // Get all the items that are intersecting with the eraser path, except the eraser itself
-    QList<QGraphicsItem*> collidItems = items(eraserBoundingRect, Qt::IntersectsItemBoundingRect);
+    // Retrieve items affected by the eraser path
+    const auto itemsList = items(eraserPath, Qt::ContainsItemShape);
+    QSet<QGraphicsItem*> fullyContained(itemsList.cbegin(), itemsList.cend());
+    fullyContained.remove(mEraser);
+
+    QList<QGraphicsItem*> collidItems = items(eraserPath, Qt::IntersectsItemShape);
     collidItems.removeOne(mEraser);
 
     QList<UBGraphicsPolygonItem*> intersectedItems;
@@ -1061,24 +1162,24 @@ void UBGraphicsScene::eraseLineTo(const QPointF &pEndPoint, const qreal &pWidth)
     typedef QList<QPolygonF> POLYGONSLIST;
     QList<POLYGONSLIST> intersectedPolygons;
 
-    for(int i=0; i<collidItems.size(); i++)
+    for (int i = 0; i < collidItems.size(); i++)
     {
-        UBGraphicsPolygonItem *pi = qgraphicsitem_cast<UBGraphicsPolygonItem*>(collidItems[i]);
-        if(pi == NULL)
+        UBGraphicsPolygonItem *pi = qgraphicsitem_cast<UBGraphicsPolygonItem *>(collidItems[i]);
+        if (!pi)
             continue;
 
-        QPainterPath itemPainterPath;
-        itemPainterPath.addPolygon(pi->sceneTransform().map(pi->polygon()));
-
-        if (eraserPath.contains(itemPainterPath))
+        if (fullyContained.contains(pi))
         {
             // Completely remove item
             intersectedItems << pi;
             intersectedPolygons << QList<QPolygonF>();
         }
-        else if (eraserPath.intersects(itemPainterPath))
+        else
         {
+            QPainterPath itemPainterPath;
+            itemPainterPath.addPolygon(pi->sceneTransform().map(pi->polygon()));
             itemPainterPath.setFillRule(Qt::WindingFill);
+            
             // reverse eraserPath so that it has the opposite orientation of the stroke
             // necessary for punching a hole with WindingFill rule
             QPainterPath newPath = itemPainterPath.subtracted(eraserPath.toReversed());
@@ -1134,6 +1235,8 @@ void UBGraphicsScene::eraseLineTo(const QPointF &pEndPoint, const qreal &pWidth)
 
     if (!intersectedItems.empty())
         setModified(true);
+    // Refresh only the affected region
+    update(eraserBoundingRect);
 }
 
 void UBGraphicsScene::drawArcTo(const QPointF& pCenterPoint, qreal pSpanAngle)
@@ -1489,12 +1592,15 @@ void UBGraphicsScene::clearContent(clearCase pCase)
 {
     QSet<QGraphicsItem*> removedItems;
     UBGraphicsItemUndoCommand::GroupDataTable groupsMap;
+    QRectF dirtyRect;
 
     switch (pCase) {
     case clearBackground :
         if(mBackgroundObject){
+            QRectF rect = mBackgroundObject->sceneBoundingRect();
             removeItem(mBackgroundObject);
             removedItems << mBackgroundObject;
+            dirtyRect = dirtyRect.united(rect);
             mBackgroundObject = nullptr;
         }
         break;
@@ -1529,6 +1635,7 @@ void UBGraphicsScene::clearContent(clearCase pCase)
             }
 
             if(shouldDelete) {
+                QRectF rect = item->sceneBoundingRect();
                 if (itemGroup) {
                     itemGroup->removeFromGroup(item);
 
@@ -1545,13 +1652,15 @@ void UBGraphicsScene::clearContent(clearCase pCase)
 
                 curDelegate->remove(false);
                 removedItems << item;
+                dirtyRect = dirtyRect.united(rect);
             }
         }
         break;
     }
 
-    // force refresh, QT is a bit lazy and take a lot of time (nb item ^2 ?) to trigger repaint
-    update(sceneRect());
+    // refresh only the areas touched by the removal
+    if (!dirtyRect.isNull())
+        update(dirtyRect);
 
     if (mUndoRedoStackEnabled) { //should be deleted after scene own undo stack implemented
 
@@ -2447,7 +2556,7 @@ void UBGraphicsScene::stylusToolChanged(int tool, int previousTool)
         {
             // tool was changed while input device is pressed
             // simulate release and press to terminate previous strokes
-            inputDeviceRelease(previousTool);
+            inputDeviceRelease(0, previousTool);
             inputDevicePress(mCurrentPoint);
         }
         else if (previousTool >= 0)
@@ -2626,7 +2735,7 @@ QPointF UBGraphicsScene::snap(const QRectF& rect, Qt::Corner* corner) const
 
 QRectF UBGraphicsScene::itemRect(const QGraphicsItem* item)
 {
-    // compute an item's rectangle in scene coordinates
+    // compute an item's rectangle in item coordinates
     // taking into account the shape of the item and
     // the nature of nominal lines
     QRectF bounds = item->boundingRect();
@@ -2655,9 +2764,7 @@ QRectF UBGraphicsScene::itemRect(const QGraphicsItem* item)
         }
     }
 
-    QRectF rect = item->mapRectToScene(bounds);
-
-    return rect;
+    return bounds;
 }
 
 void UBGraphicsScene::addMask(const QPointF &center)
@@ -3328,4 +3435,40 @@ void UBGraphicsScene::setToolCursor(int tool)
 void UBGraphicsScene::initStroke()
 {
     mCurrentStroke = new UBGraphicsStroke(shared_from_this());
+}
+
+void UBGraphicsScene::loadPointerState(const PointerState &state)
+{
+    mInputDeviceIsPressed = state.mInputDeviceIsPressed;
+    mPreviousPoint = state.mPreviousPoint;
+    mPreviousWidth = state.mPreviousWidth;
+    mDistanceFromLastStrokePoint = state.mDistanceFromLastStrokePoint;
+    mCurrentPoint = state.mCurrentPoint;
+    mPreviousPolygonItems = state.mPreviousPolygonItems;
+    mCurrentStroke = state.mCurrentStroke;
+    mAddedItems = state.mAddedItems;
+    mRemovedItems = state.mRemovedItems;
+    mArcPolygonItem = state.mArcPolygonItem;
+    mpLastPolygon = state.mpLastPolygon;
+    mTempPolygon = state.mTempPolygon;
+    mDrawWithCompass = state.mDrawWithCompass;
+    mCurrentPolygon = state.mCurrentPolygon;
+}
+
+void UBGraphicsScene::savePointerState(PointerState &state)
+{
+    state.mInputDeviceIsPressed = mInputDeviceIsPressed;
+    state.mPreviousPoint = mPreviousPoint;
+    state.mPreviousWidth = mPreviousWidth;
+    state.mDistanceFromLastStrokePoint = mDistanceFromLastStrokePoint;
+    state.mCurrentPoint = mCurrentPoint;
+    state.mPreviousPolygonItems = mPreviousPolygonItems;
+    state.mCurrentStroke = mCurrentStroke;
+    state.mAddedItems = mAddedItems;
+    state.mRemovedItems = mRemovedItems;
+    state.mArcPolygonItem = mArcPolygonItem;
+    state.mpLastPolygon = mpLastPolygon;
+    state.mTempPolygon = mTempPolygon;
+    state.mDrawWithCompass = mDrawWithCompass;
+    state.mCurrentPolygon = mCurrentPolygon;
 }

@@ -133,7 +133,7 @@ class UBPersistenceManager : public QObject
 
         void createDocumentProxiesStructure(bool interactive = false);
         void createDocumentProxiesStructure(const QFileInfoList &contentInfoList, bool interactive = false);
-        std::shared_ptr<UBDocumentProxy> createDocumentProxyStructure(QFileInfo &contentInfo);
+        static std::shared_ptr<UBDocumentProxy> createDocumentProxyStructure(const QFileInfo &contentInfo);
         QDialog::DialogCode processInteractiveReplacementDialog(std::shared_ptr<UBDocumentProxy> pProxy, bool multipleFiles = false);
 
         QStringList documentSubDirectories()
@@ -161,10 +161,13 @@ class UBPersistenceManager : public QObject
         void documentCreated(std::shared_ptr<UBDocumentProxy> pDocumentProxy);
         void documentMetadataChanged(std::shared_ptr<UBDocumentProxy> pDocumentProxy);
 
-        void documentSceneCreated(std::shared_ptr<UBDocumentProxy> pDocumentProxy, int pIndex);
+        // The following signals are emitted in UBDocument
+        void documentSceneDuplicated(std::shared_ptr<UBDocumentProxy> pDocumentProxy, int pIndex);
+        void documentSceneMoved(std::shared_ptr<UBDocumentProxy> pDocumentProxy, int fromIndex, int toIndex);
+        void documentSceneDeleted(std::shared_ptr<UBDocumentProxy> pDocumentProxy, int pIndex);
 
 private:
-        int sceneCount(const std::shared_ptr<UBDocumentProxy> pDocumentProxy);
+        static int sceneCount(const std::shared_ptr<UBDocumentProxy> pDocumentProxy);
         static QStringList getSceneFileNames(const QString& folder);
         void renamePage(std::shared_ptr<UBDocumentProxy> pDocumentProxy,
                         const int sourceIndex, const int targetIndex);

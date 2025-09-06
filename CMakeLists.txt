@@ -67,6 +67,7 @@ set(OPENBOARD_ETC_FILE      ${OPENBOARD_ETC_DIR}/OpenBoard.config
                             ${OPENBOARD_ETC_DIR}/OpenBoard.css
                             ${OPENBOARD_ETC_DIR}/widgets.md5sum)
 set(OPENBOARD_TEMPLATE_FILE ${OPENBOARD_ETC_DIR}/asyncAPI.js
+                            ${OPENBOARD_ETC_DIR}/kwinKeepAbove.js
                             ${OPENBOARD_ETC_DIR}/intranet-podcast-metadata.template
                             ${OPENBOARD_ETC_DIR}/npapi-wrapper.config.xml)
 
@@ -114,7 +115,8 @@ include(cmake/DependencyPoppler.cmake)
 include(cmake/DependencyZlib.cmake)
 include(cmake/DependencyQuaZip.cmake)
 include(cmake/DependencyFFmpeg.cmake)
-include(cmake/DependencyX11.cmake)
+include(cmake/DependencyPipewire.cmake)
+include(cmake/DependencyLibevdev.cmake)
 
 # add source path to include directories
 target_include_directories(${PROJECT_NAME} PRIVATE

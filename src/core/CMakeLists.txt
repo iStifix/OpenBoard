@@ -36,3 +36,10 @@ target_sources(${PROJECT_NAME} PRIVATE
     UBTextTools.cpp
     UBTextTools.h
 )
+
+if(LibEvdev_FOUND)
+    target_sources(${PROJECT_NAME} PRIVATE
+        UBEvdevTouch.cpp
+        UBEvdevTouch.h
+    )
+endif()

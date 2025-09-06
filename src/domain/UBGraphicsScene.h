@@ -29,6 +29,7 @@
 #define UBGRAPHICSSCENE_H_
 
 #include <QtGui>
+#include <QHash>
 #include <optional>
 
 #include "frameworks/UBCoreGraphicsScene.h"
@@ -139,9 +140,20 @@ class UBGraphicsScene: public UBCoreGraphicsScene, public UBItem, public std::en
         void clearContent(clearCase pCase = clearItemsAndAnnotations);
         void saveWidgetSnapshots();
 
-        bool inputDevicePress(const QPointF& scenePos, const qreal& pressure = 1.0, Qt::KeyboardModifiers modifiers = Qt::NoModifier);
-        bool inputDeviceMove(const QPointF& scenePos, const qreal& pressure = 1.0, Qt::KeyboardModifiers modifiers = Qt::NoModifier);
-        bool inputDeviceRelease(int tool = -1, Qt::KeyboardModifiers modifiers = Qt::NoModifier);
+        bool inputDevicePress(int id, const QPointF& scenePos, const qreal& pressure = 1.0, Qt::KeyboardModifiers modifiers = Qt::NoModifier);
+        bool inputDeviceMove(int id, const QPointF& scenePos, const qreal& pressure = 1.0, Qt::KeyboardModifiers modifiers = Qt::NoModifier);
+        bool inputDeviceRelease(int id, int tool = -1, Qt::KeyboardModifiers modifiers = Qt::NoModifier);
+
+        bool palmPress(int id, const QPointF& scenePos, const qreal& diameter);
+        bool palmMove(int id, const QPointF& scenePos, const qreal& diameter);
+        bool palmRelease(int id);
+
+        bool inputDevicePress(const QPointF& scenePos, const qreal& pressure = 1.0, Qt::KeyboardModifiers modifiers = Qt::NoModifier)
+        { return inputDevicePress(0, scenePos, pressure, modifiers); }
+        bool inputDeviceMove(const QPointF& scenePos, const qreal& pressure = 1.0, Qt::KeyboardModifiers modifiers = Qt::NoModifier)
+        { return inputDeviceMove(0, scenePos, pressure, modifiers); }
+        bool inputDeviceRelease(int tool = -1, Qt::KeyboardModifiers modifiers = Qt::NoModifier)
+        { return inputDeviceRelease(0, tool, modifiers); }
 
         void leaveEvent (QEvent* event);
 
@@ -155,9 +167,6 @@ class UBGraphicsScene: public UBCoreGraphicsScene, public UBItem, public std::en
         UBGraphicsAppleWidgetItem* addAppleWidget(const QUrl& pWidgetUrl, const QPointF& pPos = QPointF(0, 0));
         UBGraphicsW3CWidgetItem* addW3CWidget(const QUrl& pWidgetUrl, const QPointF& pPos = QPointF(0, 0));
         void addGraphicsWidget(UBGraphicsWidgetItem* graphicsWidget, const QPointF& pPos = QPointF(0, 0));
-
-        QPointF lastCenter();
-        void setLastCenter(QPointF center);
 
         UBGraphicsMediaItem* addMedia(const QUrl& pMediaFileUrl, bool shouldPlayAsap, const QPointF& pPos = QPointF(0, 0));
         UBGraphicsMediaItem* addVideo(const QUrl& pVideoFileUrl, bool shouldPlayAsap, const QPointF& pPos = QPointF(0, 0));
@@ -260,35 +269,20 @@ class UBGraphicsScene: public UBCoreGraphicsScene, public UBItem, public std::en
             public:
                 SceneViewState()
                 {
-                    zoomFactor = 1;
-                    horizontalPosition = 0;
-                    verticalPostition = 0;
-                    mLastSceneCenter = QPointF();
                 }
 
                 SceneViewState(qreal pZoomFactor, int pHorizontalPosition, int pVerticalPostition, QPointF sceneCenter = QPointF())// 1595/1605
+                    : zoomFactor{pZoomFactor}
+                    , horizontalPosition{pHorizontalPosition}
+                    , verticalPostition{pVerticalPostition}
+                    , mLastSceneCenter{sceneCenter}
                 {
-                    zoomFactor = pZoomFactor;
-                    horizontalPosition = pHorizontalPosition;
-                    verticalPostition = pVerticalPostition;
-                    mLastSceneCenter = sceneCenter;
                 }
 
-                QPointF lastSceneCenter() // Save Scene Center to replace the view when the scene becomes active
-                {
-                    return mLastSceneCenter;
-                }
-
-                void setLastSceneCenter(QPointF center)
-                {
-                    mLastSceneCenter = center;
-                }
-
-                QPointF mLastSceneCenter;
-
-                qreal zoomFactor;
-                int horizontalPosition;
-                int verticalPostition;
+                qreal zoomFactor{1};
+                int horizontalPosition{0};
+                int verticalPostition{0};
+                QPointF mLastSceneCenter{};
         };
 
         SceneViewState viewState() const
@@ -511,6 +505,36 @@ signals:
         UBSelectionFrame *mSelectionFrame;
 
         UBGraphicsCache* mGraphicsCache;
+
+        struct PointerState {
+            bool mInputDeviceIsPressed = false;
+            QPointF mPreviousPoint;
+            qreal mPreviousWidth = -1.0;
+            qreal mDistanceFromLastStrokePoint = 0;
+            QPointF mCurrentPoint;
+            QList<UBGraphicsPolygonItem*> mPreviousPolygonItems;
+            UBGraphicsStroke* mCurrentStroke = nullptr;
+            QSet<QGraphicsItem*> mAddedItems;
+            QSet<QGraphicsItem*> mRemovedItems;
+            UBGraphicsPolygonItem *mArcPolygonItem = nullptr;
+            UBGraphicsPolygonItem *mpLastPolygon = nullptr;
+            UBGraphicsPolygonItem *mTempPolygon = nullptr;
+            bool mDrawWithCompass = false;
+            UBGraphicsPolygonItem *mCurrentPolygon = nullptr;
+        };
+
+        QHash<int, PointerState> mPointerStates;
+
+        bool inputDevicePressImpl(const QPointF& scenePos, const qreal& pressure, Qt::KeyboardModifiers modifiers);
+        bool inputDeviceMoveImpl(const QPointF& scenePos, const qreal& pressure, Qt::KeyboardModifiers modifiers);
+        bool inputDeviceReleaseImpl(int tool, Qt::KeyboardModifiers modifiers);
+
+        bool palmPressImpl(const QPointF& scenePos, const qreal& diameter);
+        bool palmMoveImpl(const QPointF& scenePos, const qreal& diameter);
+        bool palmReleaseImpl();
+
+        void loadPointerState(const PointerState &state);
+        void savePointerState(PointerState &state);
 };
 
 
