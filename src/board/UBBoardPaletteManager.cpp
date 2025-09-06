@@ -236,11 +236,24 @@ void UBBoardPaletteManager::setupPalettes()
 
 
     // Add the other palettes
-    mStylusPalette = new UBStylusPalette(mContainer, UBSettings::settings()->appToolBarOrientationVertical->get().toBool() ? Qt::Vertical : Qt::Horizontal);
+    mStylusPalette = new UBStylusPalette(UBApplication::mainWindow, UBSettings::settings()->appToolBarOrientationVertical->get().toBool() ? Qt::Vertical : Qt::Horizontal);
     connect(mStylusPalette, SIGNAL(stylusToolDoubleClicked(int)), UBApplication::boardController, SLOT(stylusToolDoubleClicked(int)));
     mStylusPalette->show(); // always show stylus palette at startup
 
-    mZoomPalette = new UBZoomPalette(mContainer);
+    mZoomPalette = new UBZoomPalette(UBApplication::mainWindow);
+
+    if (UBMainWindow *mw = UBApplication::mainWindow)
+    {
+        if (mw->boardToolBar)
+        {
+            mStylusPalette->adjustSizeAndPosition();
+            const int sx = (mw->width() - mStylusPalette->width()) / 2;
+            const int sy = mw->boardToolBar->geometry().top() - mStylusPalette->height() - 10;
+            mStylusPalette->move(sx, sy);
+            mStylusPalette->raise();
+            mw->boardToolBar->stackUnder(mStylusPalette);
+        }
+    }
 
     mStylusPalette->stackUnder(mZoomPalette);
 
@@ -615,6 +628,23 @@ void UBBoardPaletteManager::backgroundPaletteClosed()
 void UBBoardPaletteManager::toggleStylusPalette(bool checked)
 {
     mStylusPalette->setVisible(checked);
+    if (checked)
+    {
+        mStylusPalette->adjustSizeAndPosition();
+        if (UBApplication::mainWindow && UBApplication::mainWindow->boardToolBar)
+        {
+            QRect tb = UBApplication::mainWindow->boardToolBar->geometry();
+            const int x = (UBApplication::mainWindow->width() - mStylusPalette->width()) / 2;
+            const int y = tb.top() - mStylusPalette->height() - 10;
+            mStylusPalette->move(x, y);
+            mStylusPalette->raise();
+            UBApplication::mainWindow->boardToolBar->stackUnder(mStylusPalette);
+        }
+        else
+        {
+            mStylusPalette->raise();
+        }
+    }
 }
 
 
@@ -1002,15 +1032,27 @@ void UBBoardPaletteManager::changeStylusPaletteOrientation(QVariant var)
     // Create the new palette
     if(bVertical)
     {
-        mStylusPalette = new UBStylusPalette(mContainer, Qt::Vertical);
+        mStylusPalette = new UBStylusPalette(UBApplication::mainWindow, Qt::Vertical);
     }
     else
     {
-        mStylusPalette = new UBStylusPalette(mContainer, Qt::Horizontal);
+        mStylusPalette = new UBStylusPalette(UBApplication::mainWindow, Qt::Horizontal);
     }
 
     connect(mStylusPalette, SIGNAL(stylusToolDoubleClicked(int)), UBApplication::boardController, SLOT(stylusToolDoubleClicked(int)));
     mStylusPalette->setVisible(bVisible); // always show stylus palette at startup
+    if (bVisible && UBApplication::mainWindow && UBApplication::mainWindow->boardToolBar)
+    {
+        mStylusPalette->adjustSizeAndPosition();
+        QRect tb = UBApplication::mainWindow->boardToolBar->geometry();
+        const int x = (UBApplication::mainWindow->width() - mStylusPalette->width()) / 2;
+        const int y = tb.top() - mStylusPalette->height() - 10;
+        mStylusPalette->move(x, y);
+        mStylusPalette->raise();
+        UBApplication::mainWindow->boardToolBar->stackUnder(mStylusPalette);
+    }
+    if (mZoomPalette)
+        mStylusPalette->stackUnder(mZoomPalette);
 }
 
 

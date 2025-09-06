@@ -30,11 +30,18 @@
 #include <QtGui>
 #include <QToolTip>
 #include <QStackedLayout>
+#include <QScreen>
+#include <QGuiApplication>
+#include <QResizeEvent>
+#include <QSizePolicy>
+#include <QTimer>
 
 #include "UBMainWindow.h"
 #include "core/UBApplication.h"
 #include "core/UBApplicationController.h"
 #include "board/UBBoardController.h"
+#include "board/UBBoardPaletteManager.h"
+#include "gui/UBStylusPalette.h"
 #include "core/UBDisplayManager.h"
 #include "core/UBShortcutManager.h"
 
@@ -79,6 +86,38 @@ UBMainWindow::UBMainWindow(QWidget *parent, Qt::WindowFlags flags)
 #endif
 
     UBShortcutManager::shortcutManager()->addMainActions(this);
+
+    // Modernize the board toolbar for high resolution touch screens
+    QScreen *screen = QGuiApplication::primaryScreen();
+    mIs4k = screen && screen->geometry().height() >= 1230;
+    if (mIs4k)
+    {
+        const QSize large(98, 98);
+        boardToolBar->setIconSize(large);
+        boardToolBar->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+        boardToolBar->setStyleSheet(
+            QStringLiteral(
+                "QToolBar{background:rgba(30,30,30,180);border-radius:20px;padding:12px;}"
+                "QToolButton{width:98px;height:98px;border-radius:12px;margin:6px;}"
+                "QToolButton:hover{background:rgba(255,255,255,30);}"));
+        removeToolBar(boardToolBar);
+        boardToolBar->setParent(this);
+        boardToolBar->setFloatable(false);
+        boardToolBar->setMovable(false);
+        boardToolBar->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+        boardToolBar->adjustSize();
+        boardToolBar->show();
+        layoutBoardToolbar();
+        QTimer::singleShot(0, this, SLOT(layoutBoardToolbar()));
+        QTimer::singleShot(1000, this, SLOT(layoutBoardToolbar()));
+    }
+    else
+    {
+        boardToolBar->setParent(this);
+        layoutBoardToolbar();
+        QTimer::singleShot(0, this, SLOT(layoutBoardToolbar()));
+        QTimer::singleShot(1000, this, SLOT(layoutBoardToolbar()));
+    }
 }
 
 UBMainWindow::~UBMainWindow()
@@ -153,6 +192,44 @@ void UBMainWindow::closeEvent(QCloseEvent *event)
     event->ignore();
     emit closeEvent_Signal(event);
 }
+
+void UBMainWindow::resizeEvent(QResizeEvent *event)
+{
+    QMainWindow::resizeEvent(event);
+    layoutBoardToolbar();
+}
+
+void UBMainWindow::layoutBoardToolbar()
+{
+    if (mIs4k && boardToolBar)
+    {
+        boardToolBar->adjustSize();
+        const QSize size = boardToolBar->sizeHint();
+        const int x = (width() - size.width()) / 2;
+        const int y = height() - size.height() - 20;
+        boardToolBar->setGeometry(x, y, size.width(), size.height());
+        boardToolBar->raise();
+    }
+    if (UBApplication::boardController && UBApplication::boardController->paletteManager())
+    {
+        UBStylusPalette *stylus = UBApplication::boardController->paletteManager()->stylusPalette();
+        if (stylus && stylus->isVisible())
+        {
+            stylus->adjustSizeAndPosition();
+            const int sx = (width() - stylus->width()) / 2;
+            const int sy = boardToolBar->geometry().top() - stylus->height() - 10;
+            stylus->move(sx, sy);
+            stylus->raise();
+            boardToolBar->stackUnder(stylus);
+        }
+    }
+}
+
+bool UBMainWindow::is4k() const
+{
+    return mIs4k;
+}
+
 
 // work around for handling tablet events on MAC OS with Qt 4.8.0 and above
 #if defined(Q_OS_OSX)

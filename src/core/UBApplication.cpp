@@ -483,7 +483,8 @@ void UBApplication::toolBarPositionChanged(QVariant topOrBottom)
     else
         area = Qt::BottomToolBarArea;
 
-    mainWindow->addToolBar(area, mainWindow->boardToolBar);
+    if (!mainWindow->is4k())
+        mainWindow->addToolBar(area, mainWindow->boardToolBar);
     mainWindow->addToolBar(area, mainWindow->webToolBar);
     mainWindow->addToolBar(area, mainWindow->documentToolBar);
 
@@ -495,7 +496,8 @@ void UBApplication::toolBarPositionChanged(QVariant topOrBottom)
 void UBApplication::toolBarDisplayTextChanged(QVariant display)
 {
     Qt::ToolButtonStyle toolButtonStyle = display.toBool() ? Qt::ToolButtonTextUnderIcon : Qt::ToolButtonIconOnly;
-    mainWindow->boardToolBar->setToolButtonStyle(toolButtonStyle);
+    if (!mainWindow->is4k())
+        mainWindow->boardToolBar->setToolButtonStyle(toolButtonStyle);
     mainWindow->webToolBar->setToolButtonStyle(toolButtonStyle);
     mainWindow->documentToolBar->setToolButtonStyle(toolButtonStyle);
 }

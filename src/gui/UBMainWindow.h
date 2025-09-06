@@ -63,17 +63,23 @@ class UBMainWindow : public QMainWindow, public Ui::MainWindow
         void showDownloadWidget();
         void hideDownloadWidget();
 
+        bool is4k() const;
+
     signals:
         void closeEvent_Signal( QCloseEvent *event );
 
     public slots:
         void onExportDone();
+        
+    private slots:
+        void layoutBoardToolbar();
 
     protected:
         void oneButtonMessageBox(QString windowTitle, QString text, QMessageBox::Icon type);
 
         virtual void keyPressEvent(QKeyEvent *event);
         virtual void closeEvent (QCloseEvent *event);
+        virtual void resizeEvent(QResizeEvent *event);
 
         virtual QMenu* createPopupMenu ()
         {
@@ -93,6 +99,7 @@ private:
         bool event(QEvent *event);
 #endif
         UBDownloadWidget* mpDownloadWidget;
+        bool mIs4k;
 };
 
 #endif /* UBMAINWINDOW_H_ */
