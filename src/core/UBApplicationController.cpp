@@ -200,7 +200,6 @@ void UBApplicationController::adaptToolBar()
     mMainWindow->actionBoard->setVisible(Board != mMainMode || highResolution);
     mMainWindow->actionDocument->setVisible(Document != mMainMode || highResolution);
     mMainWindow->actionWeb->setVisible(Internet != mMainMode || highResolution);
-    mMainWindow->boardToolBar->setIconSize(QSize(highResolution ? 48 : 42, mMainWindow->boardToolBar->iconSize().height()));
 
     mMainWindow->actionBoard->setEnabled(mMainMode != Board);
     mMainWindow->actionWeb->setEnabled(mMainMode != Internet);
@@ -228,7 +227,7 @@ void UBApplicationController::adjustDisplayView()
 {
     if (mDisplayView)
     {
-        qreal systemDisplayViewScaleFactor = 1.0;
+        qreal systemDisplayViewScaleFactor = 1.5;
 
         QSize pageSize = mControlView->size();
         QSize displaySize = mDisplayView->size();

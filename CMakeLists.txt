@@ -81,10 +81,11 @@ set(OPENBOARD_MIMEICON_FILE resources/linux/ch.openboard.application-ubz.svg)
 # Basic compiler settings
 # ==========================================================================
 
-set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to use - defaults to C++17")
+set(CMAKE_CXX_STANDARD 20 CACHE STRING "C++ standard to use - defaults to C++20")
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON)
 
 list(APPEND CMAKE_AUTOUIC_SEARCH_PATHS 
     ${OPENBOARD_FORMS_DIR}

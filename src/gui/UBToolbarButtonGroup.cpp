@@ -138,7 +138,7 @@ void UBToolbarButtonGroup::setIcon(const QIcon &icon, int index)
 
 void UBToolbarButtonGroup::setColor(const QColor &color, int index)
 {
-    QPixmap pixmap(12, 12);
+    QPixmap pixmap(32, 32);
     pixmap.fill(color);
     QIcon icon(pixmap);
     setIcon(icon, index);

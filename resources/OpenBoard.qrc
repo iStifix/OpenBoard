@@ -67,6 +67,8 @@
         <file>images/toolbar/redo.png</file>
         <file>images/toolbar/redoOn.png</file>
         <file>images/toolbar/stylus.png</file>
+        <file>images/toolbar/brush.png</file>
+        <file>images/toolbar/palette.png</file>
         <file>images/toolbar/undo.png</file>
         <file>images/toolbar/undoOn.png</file>
         <file>images/toolbar/smallPen.png</file>

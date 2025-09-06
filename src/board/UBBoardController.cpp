@@ -127,6 +127,11 @@ void UBBoardController::init()
     setupViews();
     setupToolbar();
 
+    // icon size from .ui
+    mUiBoardIconSize    = mMainWindow->boardToolBar->iconSize();
+    mUiWebIconSize      = mMainWindow->webToolBar->iconSize();
+    mUiDocumentIconSize = mMainWindow->documentToolBar->iconSize();
+
     connect(UBApplication::undoStack, SIGNAL(canUndoChanged(bool))
             , this, SLOT(undoRedoStateChange(bool)));
 
@@ -594,16 +599,20 @@ void UBBoardController::initToolbarTexts()
 
 void UBBoardController::setToolbarTexts()
 {
-    QSize iconSize;
-
-    if (mMainWindow->width() <= 1280)
-        iconSize = QSize(24, 24);
-    else
-        iconSize = QSize(48, 32);
-
-    mMainWindow->boardToolBar->setIconSize(iconSize);
-    mMainWindow->webToolBar->setIconSize(iconSize);
-    mMainWindow->documentToolBar->setIconSize(iconSize);
+    if (mMainWindow->width() <= 1280) {
+            const QSize small = QSize(24, 24);
+            mMainWindow->boardToolBar->setIconSize(small);
+            mMainWindow->webToolBar->setIconSize(small);
+            mMainWindow->documentToolBar->setIconSize(small);
+        } else {
+            // icon size from .ui
+                if (mUiBoardIconSize.isValid())
+                     mMainWindow->boardToolBar->setIconSize(mUiBoardIconSize);
+            if (mUiWebIconSize.isValid())
+                    mMainWindow->webToolBar->setIconSize(mUiWebIconSize);
+            if (mUiDocumentIconSize.isValid())
+                    mMainWindow->documentToolBar->setIconSize(mUiDocumentIconSize);
+        }
 
     foreach(QAction* action, mActionTexts.keys())
     {

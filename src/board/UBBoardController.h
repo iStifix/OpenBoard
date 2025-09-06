@@ -312,6 +312,9 @@ class UBBoardController : public UBDocumentContainer
         QColor mPenColorOnLightBackground;
         QColor mMarkerColorOnDarkBackground;
         QColor mMarkerColorOnLightBackground;
+        QSize mUiBoardIconSize;
+        QSize mUiWebIconSize;
+        QSize mUiDocumentIconSize;
         qreal mSystemScaleFactor;
         bool mCleanupDone;
         QMap<QAction*, QPair<QString, QString> > mActionTexts;
