@@ -247,11 +247,21 @@ void UBBoardPaletteManager::setupPalettes()
         if (mw->boardToolBar)
         {
             mStylusPalette->adjustSizeAndPosition();
-            const int sx = (mw->width() - mStylusPalette->width()) / 2;
-            const int sy = mw->boardToolBar->geometry().top() - mStylusPalette->height() - 10;
-            mStylusPalette->move(sx, sy);
-            mStylusPalette->raise();
-            mw->boardToolBar->stackUnder(mStylusPalette);
+            if (UBSettings::settings()->appToolBarOrientationVertical->get().toBool())
+            {
+                const int sx = mStylusPalette->border();
+                const int sy = (mw->height() - mStylusPalette->height()) / 2;
+                mStylusPalette->move(sx, sy);
+                mStylusPalette->raise();
+            }
+            else
+            {
+                const int sx = (mw->width() - mStylusPalette->width()) / 2;
+                const int sy = mw->boardToolBar->geometry().top() - mStylusPalette->height() - 10;
+                mStylusPalette->move(sx, sy);
+                mStylusPalette->raise();
+                mw->boardToolBar->stackUnder(mStylusPalette);
+            }
         }
     }
 
@@ -631,7 +641,14 @@ void UBBoardPaletteManager::toggleStylusPalette(bool checked)
     if (checked)
     {
         mStylusPalette->adjustSizeAndPosition();
-        if (UBApplication::mainWindow && UBApplication::mainWindow->boardToolBar)
+        if (UBSettings::settings()->appToolBarOrientationVertical->get().toBool())
+        {
+            const int x = mStylusPalette->border();
+            const int y = (UBApplication::mainWindow->height() - mStylusPalette->height()) / 2;
+            mStylusPalette->move(x, y);
+            mStylusPalette->raise();
+        }
+        else if (UBApplication::mainWindow && UBApplication::mainWindow->boardToolBar)
         {
             QRect tb = UBApplication::mainWindow->boardToolBar->geometry();
             const int x = (UBApplication::mainWindow->width() - mStylusPalette->width()) / 2;
@@ -1044,12 +1061,22 @@ void UBBoardPaletteManager::changeStylusPaletteOrientation(QVariant var)
     if (bVisible && UBApplication::mainWindow && UBApplication::mainWindow->boardToolBar)
     {
         mStylusPalette->adjustSizeAndPosition();
-        QRect tb = UBApplication::mainWindow->boardToolBar->geometry();
-        const int x = (UBApplication::mainWindow->width() - mStylusPalette->width()) / 2;
-        const int y = tb.top() - mStylusPalette->height() - 10;
-        mStylusPalette->move(x, y);
-        mStylusPalette->raise();
-        UBApplication::mainWindow->boardToolBar->stackUnder(mStylusPalette);
+        if (bVertical)
+        {
+            const int x = mStylusPalette->border();
+            const int y = (UBApplication::mainWindow->height() - mStylusPalette->height()) / 2;
+            mStylusPalette->move(x, y);
+            mStylusPalette->raise();
+        }
+        else
+        {
+            QRect tb = UBApplication::mainWindow->boardToolBar->geometry();
+            const int x = (UBApplication::mainWindow->width() - mStylusPalette->width()) / 2;
+            const int y = tb.top() - mStylusPalette->height() - 10;
+            mStylusPalette->move(x, y);
+            mStylusPalette->raise();
+            UBApplication::mainWindow->boardToolBar->stackUnder(mStylusPalette);
+        }
     }
     if (mZoomPalette)
         mStylusPalette->stackUnder(mZoomPalette);

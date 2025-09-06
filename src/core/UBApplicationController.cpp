@@ -389,11 +389,18 @@ void UBApplicationController::showBoard()
     emit mainModeChanged(Board);
 
     UBApplication::boardController->freezeW3CWidgets(false);
+
+    // ensure stylus palette is visible when returning to the board
+    if (mMainWindow->actionStylus)
+        mMainWindow->actionStylus->setChecked(true);
 }
 
 
 void UBApplicationController::showInternet()
 {
+
+    if (mMainWindow->actionStylus)
+        mMainWindow->actionStylus->setChecked(false);
 
     if (UBApplication::boardController)
     {
@@ -435,6 +442,9 @@ void UBApplicationController::showDocument()
     UBPlatformUtils::hideMenuBarAndDock();
     mMainWindow->documentToolBar->show();
 
+    if (mMainWindow->actionStylus)
+        mMainWindow->actionStylus->setChecked(false);
+
     mMainMode = Document;
 
     adaptToolBar();
@@ -467,6 +477,9 @@ void UBApplicationController::showDesktop(bool dontSwitchFrontProcess)
 {
     if (UBApplication::boardController)
         UBApplication::boardController->hide();
+
+    if (mMainWindow->actionStylus)
+        mMainWindow->actionStylus->setChecked(false);
 
     mMainWindow->hide();
     mUninoteController->showWindow();
