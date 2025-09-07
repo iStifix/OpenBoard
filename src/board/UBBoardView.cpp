@@ -44,6 +44,7 @@
 #include "core/UBMimeData.h"
 #include "core/UBApplication.h"
 #include "core/UBSetting.h"
+#include "core/UBSettings.h"
 #include "core/UBPersistenceManager.h"
 #include "core/UB.h"
 
@@ -171,7 +172,23 @@ void UBBoardView::init ()
     setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
     setWindowFlags (Qt::FramelessWindowHint);
     setFrameStyle (QFrame::NoFrame);
-    setRenderHints (QPainter::Antialiasing | QPainter::SmoothPixmapTransform | QPainter::TextAntialiasing);
+    {
+        bool lowQuality = false;
+        bool aaEnabled = true;
+        if (UBSettings::settings()) {
+            if (UBSettings::settings()->boardLowQualityRendering)
+                lowQuality = UBSettings::settings()->boardLowQualityRendering->get().toBool();
+            if (UBSettings::settings()->boardEnableAntialiasing)
+                aaEnabled = UBSettings::settings()->boardEnableAntialiasing->get().toBool();
+        }
+
+        QPainter::RenderHints hints = QPainter::TextAntialiasing; // keep text readable
+        if (aaEnabled)
+            hints |= QPainter::Antialiasing;
+        if (!lowQuality)
+            hints |= QPainter::SmoothPixmapTransform;
+        setRenderHints(hints);
+    }
     setVerticalScrollBarPolicy (Qt::ScrollBarAlwaysOff);
     setHorizontalScrollBarPolicy (Qt::ScrollBarAlwaysOff);
     setAcceptDrops (true);

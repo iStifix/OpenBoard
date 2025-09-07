@@ -690,7 +690,10 @@ bool UBGraphicsScene::inputDeviceMoveImpl(const QPointF& scenePos, const qreal& 
                 // (less polygons to draw) but mostly with making the curve look smooth.
 
                 qreal antiScaleRatio = 1./(UBApplication::boardController->systemScaleFactor() * UBApplication::boardController->currentZoom());
-                qreal MIN_DISTANCE = 10*antiScaleRatio; // arbitrary. Move to settings if relevant.
+                qreal baseMinDist = UBSettings::settings()->boardMinStrokePointDistance->get().toDouble();
+                if (currentTool == UBStylusTool::Marker && UBSettings::settings()->boardMinMarkerPointDistance)
+                    baseMinDist = UBSettings::settings()->boardMinMarkerPointDistance->get().toDouble();
+                qreal MIN_DISTANCE = baseMinDist * antiScaleRatio; // configurable minimal spacing (tool-specific)
                 qreal distance = QLineF(mPreviousPoint, scenePos).length();
 
                 mDistanceFromLastStrokePoint += distance;
@@ -1114,10 +1117,31 @@ void UBGraphicsScene::addPolygonItemToCurrentStroke(UBGraphicsPolygonItem* polyg
         // -------------------------------------------------------------------------------------
         // Here we substract the polygons that are overlapping in order to keep the transparency
         // -------------------------------------------------------------------------------------
-        for (int i = 0; i < mPreviousPolygonItems.size(); i++)
-        {
-            UBGraphicsPolygonItem* previous = mPreviousPolygonItems.value(i);
-            polygonItem->subtract(previous);
+        bool keepConstantOpacity = true;
+        if (UBSettings::settings() && UBSettings::settings()->boardMarkerConstantOpacity)
+            keepConstantOpacity = UBSettings::settings()->boardMarkerConstantOpacity->get().toBool();
+
+        if (keepConstantOpacity) {
+            // Full subtract to keep constant opacity (slower)
+            for (int i = 0; i < mPreviousPolygonItems.size(); i++)
+            {
+                UBGraphicsPolygonItem* previous = mPreviousPolygonItems.value(i);
+                polygonItem->subtract(previous);
+            }
+        } else if (!mPreviousPolygonItems.isEmpty()) {
+            // Fast path: subtract from a small window of most recent pieces that intersect the new one
+            // This avoids semicircular caps when moving slowly, while staying efficient
+            const QRectF newRect = polygonItem->boundingRect();
+            const int kMaxBack = 16; // small window
+            int checked = 0;
+            for (int idx = mPreviousPolygonItems.size() - 1; idx >= 0 && checked < kMaxBack; --idx) {
+                UBGraphicsPolygonItem* prev = mPreviousPolygonItems.at(idx);
+                if (!prev)
+                    continue;
+                ++checked;
+                if (newRect.intersects(prev->boundingRect()))
+                    polygonItem->subtract(prev);
+            }
         }
     }
 
@@ -1148,12 +1172,9 @@ void UBGraphicsScene::eraseLineTo(const QPointF &pEndPoint, const qreal &pWidth)
 
     QPainterPath eraserPath;
     eraserPath.addPolygon(eraserPolygon);
+    const bool lowQuality = UBSettings::settings()->boardLowQualityRendering->get().toBool();
 
-    // Retrieve items affected by the eraser path
-    const auto itemsList = items(eraserPath, Qt::ContainsItemShape);
-    QSet<QGraphicsItem*> fullyContained(itemsList.cbegin(), itemsList.cend());
-    fullyContained.remove(mEraser);
-
+    // Retrieve items affected by the eraser path (single query)
     QList<QGraphicsItem*> collidItems = items(eraserPath, Qt::IntersectsItemShape);
     collidItems.removeOne(mEraser);
 
@@ -1168,24 +1189,23 @@ void UBGraphicsScene::eraseLineTo(const QPointF &pEndPoint, const qreal &pWidth)
         if (!pi)
             continue;
 
-        if (fullyContained.contains(pi))
-        {
-            // Completely remove item
+        QPainterPath itemPainterPath;
+        itemPainterPath.addPolygon(pi->sceneTransform().map(pi->polygon()));
+        itemPainterPath.setFillRule(Qt::WindingFill);
+
+        if (eraserPath.contains(itemPainterPath)) {
+            // Completely remove item when fully covered by eraser
             intersectedItems << pi;
             intersectedPolygons << QList<QPolygonF>();
+            continue;
         }
-        else
-        {
-            QPainterPath itemPainterPath;
-            itemPainterPath.addPolygon(pi->sceneTransform().map(pi->polygon()));
-            itemPainterPath.setFillRule(Qt::WindingFill);
-            
-            // reverse eraserPath so that it has the opposite orientation of the stroke
-            // necessary for punching a hole with WindingFill rule
+
+        // reverse eraserPath so that it has the opposite orientation of the stroke
+        // necessary for punching a hole with WindingFill rule
             QPainterPath newPath = itemPainterPath.subtracted(eraserPath.toReversed());
             intersectedItems << pi;
-            intersectedPolygons << newPath.simplified().toFillPolygons(pi->sceneTransform().inverted());
-        }
+            // Avoid simplified() here to prevent accidental bridges/fills between close segments
+            intersectedPolygons << newPath.toFillPolygons(pi->sceneTransform().inverted());
     }
 
     for(int i=0; i<intersectedItems.size(); i++)
@@ -1195,22 +1215,50 @@ void UBGraphicsScene::eraseLineTo(const QPointF &pEndPoint, const qreal &pWidth)
 
         if (!intersectedPolygons[i].empty())
         {
-            // intersected polygons generated as QList<QPolygon> QPainterPath::toFillPolygons(),
-            // so each intersectedPolygonItem has one or couple of QPolygons who should be removed from it.
+            // Rebuild item with non-overlapping pieces to avoid alpha build-up/fills
+            QList<UBGraphicsPolygonItem*> newPieces;
+            const bool hasAlpha = !intersectedPolygonItem->brush().isOpaque();
+            bool keepConstantOpacity = true;
+            if (UBSettings::settings() && UBSettings::settings()->boardMarkerConstantOpacity)
+                keepConstantOpacity = UBSettings::settings()->boardMarkerConstantOpacity->get().toBool();
+
             for(int j = 0; j < intersectedPolygons[i].size(); j++)
             {
-                // create small polygon from couple of polygons to replace particular erased polygon
-                UBGraphicsPolygonItem* polygonItem = new UBGraphicsPolygonItem(intersectedPolygons[i][j], intersectedPolygonItem->parentItem());
+                // Skip tiny fragments to reduce item explosion and artifacts
+                if (lowQuality) {
+                    const QRectF localBounds = intersectedPolygons[i][j].boundingRect();
+                    const QRectF sceneBounds = intersectedPolygonItem->sceneTransform().mapRect(localBounds);
+                    qreal minArea = (pWidth * pWidth) / 8.0; // default for opaque
+                    if (hasAlpha && !keepConstantOpacity)
+                        minArea = (pWidth * pWidth) / 32.0; // gentler filter for translucent fast mode
+                    if (sceneBounds.width() * sceneBounds.height() < minArea)
+                        continue;
+                }
 
-                intersectedPolygonItem->copyItemParameters(polygonItem);
-                polygonItem->setNominalLine(false);
-                polygonItem->setStroke(intersectedPolygonItem->stroke());
+                UBGraphicsPolygonItem* piece = new UBGraphicsPolygonItem(intersectedPolygons[i][j], intersectedPolygonItem->parentItem());
+                intersectedPolygonItem->copyItemParameters(piece);
+                piece->setNominalLine(false);
+                piece->setStroke(intersectedPolygonItem->stroke());
+
+                if (hasAlpha && keepConstantOpacity) {
+                    // Remove overlaps with previously created pieces to keep visual opacity constant
+                    for (auto prev : newPieces)
+                        piece->subtract(prev);
+                }
+
+                // If piece vanished after subtraction, skip it
+                if (piece->polygon().isEmpty() || piece->boundingRect().isEmpty()) {
+                    delete piece;
+                    continue;
+                }
+
                 if (intersectedPolygonItem->strokesGroup())
                 {
-                    polygonItem->setStrokesGroup(intersectedPolygonItem->strokesGroup());
-                    intersectedPolygonItem->strokesGroup()->addToGroup(polygonItem);
+                    piece->setStrokesGroup(intersectedPolygonItem->strokesGroup());
+                    intersectedPolygonItem->strokesGroup()->addToGroup(piece);
                 }
-                mAddedItems << polygonItem;
+                newPieces << piece;
+                mAddedItems << piece;
             }
         }
 
