@@ -51,7 +51,7 @@
 using namespace merge_lib;
 
 
-Page::Page(unsigned int pageNumber): _root(NULL),_pageNumber(pageNumber), _rotation(0)
+Page::Page(unsigned int pageNumber): _root(nullptr),_pageNumber(pageNumber), _rotation(0)
 {
 
 }
@@ -575,5 +575,4 @@ void Page::merge(Page * sourcePage, Document * parentDocument, MergePageDescript
    catalog->addChild(mergedPage, pagePosition);
    _root = mergedPage; 
 }
-
 

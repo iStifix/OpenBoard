@@ -2309,7 +2309,7 @@ void UBDocumentController::setupViews()
         mDocumentUI->thumbnailWidget->setBackgroundBrush(UBSettings::documentViewLightColor);
 
         #ifdef Q_WS_MACX
-            mMessageWindow = new UBMessageWindow(NULL);
+            mMessageWindow = new UBMessageWindow(nullptr);
         #else
             mMessageWindow = new UBMessageWindow(mDocumentUI->thumbnailWidget);
         #endif

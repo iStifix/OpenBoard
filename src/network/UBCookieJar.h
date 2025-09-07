@@ -78,9 +78,8 @@ class UBCookieJar : public QNetworkCookieJar
     Q_OBJECT
 
 public:
-    UBCookieJar(QObject *parent = 0);
+    UBCookieJar(QObject *parent = nullptr);
     QList<QNetworkCookie> cookieList() const;
 };
 
 #endif // UBCOOKIEJAR_H
-

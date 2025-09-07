@@ -54,6 +54,8 @@
 #include "web/UBWebController.h"
 
 #include "desktop/UBDesktopAnnotationController.h"
+#include "desktop/UBDesktopPalette.h"
+#include "board/UBBoardView.h"
 
 
 #include "network/UBNetworkAccessManager.h"
@@ -342,6 +344,10 @@ void UBBoardPaletteManager::setupPalettes()
     mColorPickerPalette->hide();
 
     connect(UBSettings::settings()->appToolBarOrientationVertical, SIGNAL(changed(QVariant)), this, SLOT(changeStylusPaletteOrientation(QVariant)));
+
+    // Enable/disable Color Picker based on selected tool (only for drawing tools)
+    connect(UBDrawingController::drawingController(), SIGNAL(stylusToolChanged(int)), this, SLOT(updateColorPickerAvailability(int)));
+    updateColorPickerAvailability(UBDrawingController::drawingController()->stylusTool());
 }
 
 void UBBoardPaletteManager::pagePaletteButtonPressed()
@@ -720,6 +726,15 @@ void UBBoardPaletteManager::pagePaletteClosed()
 
 void UBBoardPaletteManager::toggleColorPickerPalette(bool checked)
 {
+    if (UBApplication::mainWindow && UBApplication::mainWindow->actionColorPicker && !UBApplication::mainWindow->actionColorPicker->isEnabled())
+    {
+        // Guard: ignore toggles when not a drawing tool
+        if (mColorPickerPalette)
+            mColorPickerPalette->hide();
+        if (UBApplication::mainWindow->actionColorPicker)
+            UBApplication::mainWindow->actionColorPicker->setChecked(false);
+        return;
+    }
     if (!mColorPickerPalette)
         return;
 
@@ -731,33 +746,91 @@ void UBBoardPaletteManager::toggleColorPickerPalette(bool checked)
 
         mColorPickerPalette->adjustSizeAndPosition();
 
+        // Choose target parent and position relative to the invoking button depending on mode
+        QWidget* targetParent = mContainer;
+        bool isDesktop = UBApplication::applicationController && UBApplication::applicationController->isShowingDesktop();
+        if (isDesktop)
+        {
+            if (UBApplication::applicationController->uninotesController())
+                targetParent = UBApplication::applicationController->uninotesController()->drawingView();
+        }
+
         QAbstractButton* button = nullptr;
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
-        if (!UBApplication::mainWindow->actionColorPicker->associatedObjects().isEmpty())
-            button = qobject_cast<QAbstractButton*>(UBApplication::mainWindow->actionColorPicker->associatedObjects().first());
+        const auto objs = UBApplication::mainWindow->actionColorPicker->associatedObjects();
+        for (QObject* obj : objs)
+        {
+            if (auto ab = qobject_cast<QAbstractButton*>(obj))
+            {
+                if (!isDesktop)
+                {
+                    button = ab; break;
+                }
+                else
+                {
+                    // Pick the button belonging to the desktop palette
+                    QWidget* w = ab;
+                    while (w && !qobject_cast<UBDesktopPalette*>(w)) w = w->parentWidget();
+                    if (qobject_cast<UBDesktopPalette*>(w)) { button = ab; break; }
+                }
+            }
+        }
 #else
-        if (!UBApplication::mainWindow->actionColorPicker->associatedWidgets().isEmpty())
-            button = qobject_cast<QAbstractButton*>(UBApplication::mainWindow->actionColorPicker->associatedWidgets().first());
+        const auto wgs = UBApplication::mainWindow->actionColorPicker->associatedWidgets();
+        for (QWidget* w : wgs)
+        {
+            if (auto ab = qobject_cast<QAbstractButton*>(w))
+            {
+                if (!isDesktop)
+                {
+                    button = ab; break;
+                }
+                else
+                {
+                    QWidget* p = ab;
+                    while (p && !qobject_cast<UBDesktopPalette*>(p)) p = p->parentWidget();
+                    if (qobject_cast<UBDesktopPalette*>(p)) { button = ab; break; }
+                }
+            }
+        }
 #endif
 
         if (!button)
         {
-            if (QToolBar* bar = UBApplication::mainWindow->findChild<QToolBar*>(QStringLiteral("boardToolBar")))
-                button = qobject_cast<QAbstractButton*>(bar->widgetForAction(UBApplication::mainWindow->actionColorPicker));
+            if (!isDesktop)
+            {
+                if (QToolBar* bar = UBApplication::mainWindow->findChild<QToolBar*>(QStringLiteral("boardToolBar")))
+                    button = qobject_cast<QAbstractButton*>(bar->widgetForAction(UBApplication::mainWindow->actionColorPicker));
+            }
         }
 
         if (button)
         {
             QPoint global = button->mapToGlobal(QPoint(0, 0));
-            QPoint pos = mContainer->mapFromGlobal(global);
-            int x = pos.x() + (button->width() - mColorPickerPalette->width()) / 2;
-            int y = pos.y() - mColorPickerPalette->height() - 10;
+            QPoint pos = targetParent->mapFromGlobal(global);
+            int x;
+            int y;
+            if (isDesktop)
+            {
+                // On Desktop, show to the right of the invoking button, vertically centered
+                x = pos.x() + button->width() + 10;
+                y = pos.y() + (button->height() - mColorPickerPalette->height()) / 2;
+                x = qMin(x, targetParent->width() - mColorPickerPalette->width() - 10);
+                y = qMax(10, qMin(y, targetParent->height() - mColorPickerPalette->height() - 10));
+            }
+            else
+            {
+                // On Board, show above the toolbar button
+                x = pos.x() + (button->width() - mColorPickerPalette->width()) / 2;
+                y = pos.y() - mColorPickerPalette->height() - 10;
+            }
             mColorPickerPalette->move(x, y);
         }
         else
         {
-            mColorPickerPalette->move((mContainer->width() - mColorPickerPalette->width()) / 2,
-                                     (mContainer->height() - mColorPickerPalette->height()) / 5);
+            QWidget* ref = targetParent;
+            mColorPickerPalette->move((ref->width() - mColorPickerPalette->width()) / 2,
+                                     (ref->height() - mColorPickerPalette->height()) / 5);
         }
     }
 }
@@ -766,6 +839,21 @@ void UBBoardPaletteManager::colorPickerPaletteClosed()
 {
     if (UBApplication::mainWindow && UBApplication::mainWindow->actionColorPicker)
         UBApplication::mainWindow->actionColorPicker->setChecked(false);
+}
+
+void UBBoardPaletteManager::updateColorPickerAvailability(int tool)
+{
+    bool enable = UBDrawingController::drawingController()->isDrawingTool(tool);
+    if (UBApplication::mainWindow && UBApplication::mainWindow->actionColorPicker)
+    {
+        UBApplication::mainWindow->actionColorPicker->setEnabled(enable);
+        if (!enable)
+        {
+            if (mColorPickerPalette)
+                mColorPickerPalette->hide();
+            UBApplication::mainWindow->actionColorPicker->setChecked(false);
+        }
+    }
 }
 
 void UBBoardPaletteManager::tooglePodcastPalette(bool checked)
@@ -800,6 +888,16 @@ void UBBoardPaletteManager::changeMode(eUBDockPaletteWidgetMode newMode, bool is
                 // On Application start up the mAddItemPalette isn't initialized yet
                 if(mAddItemPalette){
                     mAddItemPalette->setParent(UBApplication::boardController->controlContainer());
+                }
+                // Ensure color picker palette is reparented back to the Board container after Desktop mode
+                if (!isInit && mColorPickerPalette) {
+                    QWidget* targetParent = UBApplication::boardController->controlContainer();
+                    if (mColorPickerPalette->parentWidget() != targetParent) {
+                        bool wasVisible = mColorPickerPalette->isVisible();
+                        mColorPickerPalette->hide();
+                        mColorPickerPalette->setParent(targetParent);
+                        if (wasVisible) mColorPickerPalette->show();
+                    }
                 }
                 mLeftPalette->assignParent(mContainer);
                 mRightPalette->assignParent(mContainer);
@@ -837,6 +935,14 @@ void UBBoardPaletteManager::changeMode(eUBDockPaletteWidgetMode newMode, bool is
                 mAddItemPalette->setParent((QWidget*)UBApplication::applicationController->uninotesController()->drawingView());
                 mLeftPalette->assignParent((QWidget*)UBApplication::applicationController->uninotesController()->drawingView());
                 mRightPalette->assignParent((QWidget*)UBApplication::applicationController->uninotesController()->drawingView());
+                if (mColorPickerPalette) {
+                    bool wasVisible = mColorPickerPalette->isVisible();
+                    mColorPickerPalette->hide();
+                    UBDesktopAnnotationController* uninotes = (UBApplication::applicationController ? UBApplication::applicationController->uninotesController() : nullptr);
+                    QWidget* targetParent = uninotes ? (QWidget*)uninotes->drawingView() : UBApplication::mainWindow;
+                    mColorPickerPalette->setParent(targetParent);
+                    if (wasVisible) mColorPickerPalette->show();
+                }
                 mStylusPalette->raise();
 
                 if (UBPlatformUtils::hasVirtualKeyboard()

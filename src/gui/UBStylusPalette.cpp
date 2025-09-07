@@ -34,6 +34,7 @@
 #include "UBMainWindow.h"
 
 #include "core/UBApplication.h"
+#include "core/UB.h"
 #include "core/UBSettings.h"
 #include "core/UBApplicationController.h"
 #include "core/UBShortcutManager.h"
@@ -51,9 +52,7 @@ UBStylusPalette::UBStylusPalette(QWidget *parent, Qt::Orientation orient)
 {
     QList<QAction*> actions;
 
-    actions << UBApplication::mainWindow->actionPen;
-    actions << UBApplication::mainWindow->actionEraser;
-    actions << UBApplication::mainWindow->actionMarker;
+    // Pen, Eraser, and Marker are moved to the main toolbar
     actions << UBApplication::mainWindow->actionSelector;
     actions << UBApplication::mainWindow->actionPlay;
 
@@ -78,6 +77,27 @@ UBStylusPalette::UBStylusPalette(QWidget *parent, Qt::Orientation orient)
     setActions(actions);
     setButtonIconSize(QSize(42, 42));
     groupActions();
+
+    // Ensure IDs match UBStylusTool enum even without Pen/Eraser/Marker
+    // Include Pen/Marker/Eraser in the action group for mutual exclusivity
+    if (mActionGroup)
+    {
+        mActionGroup->addAction(UBApplication::mainWindow->actionPen);
+        mActionGroup->addAction(UBApplication::mainWindow->actionMarker);
+        mActionGroup->addAction(UBApplication::mainWindow->actionEraser);
+    }
+    UBApplication::mainWindow->actionPen->setProperty("id", (int)UBStylusTool::Pen);
+    UBApplication::mainWindow->actionMarker->setProperty("id", (int)UBStylusTool::Marker);
+    UBApplication::mainWindow->actionEraser->setProperty("id", (int)UBStylusTool::Eraser);
+    UBApplication::mainWindow->actionSelector->setProperty("id", (int)UBStylusTool::Selector);
+    UBApplication::mainWindow->actionPlay->setProperty("id", (int)UBStylusTool::Play);
+    UBApplication::mainWindow->actionHand->setProperty("id", (int)UBStylusTool::Hand);
+    UBApplication::mainWindow->actionZoomIn->setProperty("id", (int)UBStylusTool::ZoomIn);
+    UBApplication::mainWindow->actionZoomOut->setProperty("id", (int)UBStylusTool::ZoomOut);
+    UBApplication::mainWindow->actionPointer->setProperty("id", (int)UBStylusTool::Pointer);
+    UBApplication::mainWindow->actionLine->setProperty("id", (int)UBStylusTool::Line);
+    UBApplication::mainWindow->actionText->setProperty("id", (int)UBStylusTool::Text);
+    UBApplication::mainWindow->actionCapture->setProperty("id", (int)UBStylusTool::Capture);
 
     UBShortcutManager::shortcutManager()->addActionGroup(mActionGroup);
 
@@ -130,5 +150,3 @@ void UBStylusPalette::stylusToolDoubleClicked()
 {
     emit stylusToolDoubleClicked(mActionGroup->checkedAction()->property("id").toInt());
 }
-
-

@@ -40,7 +40,7 @@ class UBNetworkAccessManager : public QNetworkAccessManager
 
         static UBNetworkAccessManager *defaultAccessManager();
 
-        UBNetworkAccessManager(QObject *parent = 0);
+        UBNetworkAccessManager(QObject *parent = nullptr);
 
         virtual QNetworkReply *get(const QNetworkRequest &request);
 

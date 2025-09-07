@@ -41,8 +41,8 @@ UBGraphicsPolygonItem::UBGraphicsPolygonItem (QGraphicsItem * parent)
     , mHasAlpha(false)
     , mOriginalWidth(-1)
     , mIsNominalLine(false)
-    , mStroke(0)
-    , mpGroup(NULL)
+    , mStroke(nullptr)
+    , mpGroup(nullptr)
 {
     // NOOP
     initialize();
@@ -53,8 +53,8 @@ UBGraphicsPolygonItem::UBGraphicsPolygonItem (const QPolygonF & polygon, QGraphi
     : QGraphicsPolygonItem(polygon, parent)
     , mOriginalWidth(-1)
     , mIsNominalLine(false)
-    , mStroke(0)
-    , mpGroup(NULL)
+    , mStroke(nullptr)
+    , mpGroup(nullptr)
 {
     // NOOP
     initialize();
@@ -66,8 +66,8 @@ UBGraphicsPolygonItem::UBGraphicsPolygonItem (const QLineF& pLine, qreal pWidth)
     , mOriginalLine(pLine)
     , mOriginalWidth(pWidth)
     , mIsNominalLine(true)
-    , mStroke(0)
-    , mpGroup(NULL)
+    , mStroke(nullptr)
+    , mpGroup(nullptr)
 {
     // NOOP
     initialize();
@@ -78,8 +78,8 @@ UBGraphicsPolygonItem::UBGraphicsPolygonItem (const QLineF& pLine, qreal pStartW
     , mOriginalLine(pLine)
     , mOriginalWidth(pEndWidth)
     , mIsNominalLine(true)
-    , mStroke(0)
-    , mpGroup(NULL)
+    , mStroke(nullptr)
+    , mpGroup(nullptr)
 {
     // NOOP
     initialize();
@@ -100,12 +100,12 @@ void UBGraphicsPolygonItem::setUuid(const QUuid &pUuid)
 
 void UBGraphicsPolygonItem::clearStroke()
 {
-    if (mStroke!=NULL)
+    if (mStroke!=nullptr)
     {
         mStroke->remove(this);
         if (mStroke->polygons().empty())
             delete mStroke;
-        mStroke = NULL;
+        mStroke = nullptr;
     }
 }
 
@@ -152,7 +152,7 @@ QColor UBGraphicsPolygonItem::color() const
 
 UBItem* UBGraphicsPolygonItem::deepCopy() const
 {
-    UBGraphicsPolygonItem* copy = new UBGraphicsPolygonItem(polygon(), 0);
+    UBGraphicsPolygonItem* copy = new UBGraphicsPolygonItem(polygon(), nullptr);
     copyItemParameters(copy);
     return copy;
 }

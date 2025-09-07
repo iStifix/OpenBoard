@@ -69,6 +69,14 @@ class UBDesktopPalette : public UBActionPalette
         void minimizeMe(eMinimizedLocation location);
         void maximizeMe();
         void parentResized();
+        void onMinimizeClicked();
+        void performMinimize();
+
+    protected:
+        // Pin the palette: disable manual dragging/moving
+        virtual void mousePressEvent(QMouseEvent *event) override { Q_UNUSED(event); }
+        virtual void mouseMoveEvent(QMouseEvent *event) override { Q_UNUSED(event); }
+        virtual void mouseReleaseEvent(QMouseEvent *event) override { Q_UNUSED(event); }
 
 protected:
         void showEvent(QShowEvent *event);
@@ -80,6 +88,7 @@ private:
         QAction *mShowHideAction;
         QAction *mDisplaySelectAction;
         QAction *mMaximizeAction;
+        QAction *mMinimizeAction;
         QAction *mActionUniboard;
         QAction *mActionCustomSelect;
         QAction* mActionTest;
@@ -87,6 +96,7 @@ private:
 
         UBRightPalette* rightPalette;
         void adjustPosition();
+        void centerLeft();
 
 
 signals:

@@ -189,6 +189,7 @@ class UBBoardPaletteManager : public QObject
 
         void toggleColorPickerPalette(bool checked);
         void colorPickerPaletteClosed();
+        void updateColorPickerAvailability(int tool);
 
         void changeStylusPaletteOrientation(QVariant var);
 };

@@ -83,7 +83,12 @@
         <file>images/toolbar/home.png</file>
         <file>images/toolbar/profile.png</file>
         <file>images/toolbar/library.png</file>
+        <file>images/toolbar/pen.png</file>
+        <file>images/toolbar/marker.png</file>
+        <file>images/toolbar/erazer.png</file>
         <file>images/toolbar/clearPage.png</file>
+        <file>images/toolbar/close.png</file>
+        <file>images/toolbar/exit.png</file>
         <file>images/toolbar/reload.png</file>
         <file>images/toolbar/addBookmark.png</file>
         <file>images/toolbar/bookmarks.png</file>

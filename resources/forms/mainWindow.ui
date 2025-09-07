@@ -83,6 +83,9 @@
    </attribute>
    <addaction name="actionStylus"/>
    <addaction name="actionColorPicker"/>
+   <addaction name="actionPen"/>
+   <addaction name="actionMarker"/>
+   <addaction name="actionEraser"/>
    <addaction name="actionBackgrounds"/>
    <addaction name="separator"/>
    <addaction name="actionUndo"/>
@@ -99,6 +102,7 @@
    <addaction name="actionDocument"/>
    <addaction name="actionDesktop"/>
    <addaction name="actionMenu"/>
+   <addaction name="actionQuit"/>
   </widget>
   <widget class="QToolBar" name="webToolBar">
    <property name="font">
@@ -415,7 +419,7 @@
   <action name="actionQuit">
    <property name="icon">
     <iconset resource="../OpenBoard.qrc">
-     <normaloff>:/images/toolbar/quitOn.png</normaloff>:/images/toolbar/quitOn.png</iconset>
+     <normaloff>:/images/toolbar/exit.png</normaloff>:/images/toolbar/exit.png</iconset>
    </property>
    <property name="text">
     <string>Quit</string>
@@ -1436,8 +1440,7 @@
    </property>
    <property name="icon">
     <iconset resource="../OpenBoard.qrc">
-     <normaloff>:/images/stylusPalette/pen.svg</normaloff>
-     <normalon>:/images/stylusPalette/penOn.svg</normalon>:/images/stylusPalette/pen.svg</iconset>
+     <normaloff>:/images/toolbar/pen.png</normaloff>:/images/toolbar/pen.png</iconset>
    </property>
    <property name="text">
     <string>Pen</string>
@@ -1455,8 +1458,7 @@
    </property>
    <property name="icon">
     <iconset resource="../OpenBoard.qrc">
-     <normaloff>:/images/stylusPalette/eraser.svg</normaloff>
-     <normalon>:/images/stylusPalette/eraserOn.svg</normalon>:/images/stylusPalette/eraser.svg</iconset>
+     <normaloff>:/images/toolbar/erazer.png</normaloff>:/images/toolbar/erazer.png</iconset>
    </property>
    <property name="text">
     <string>Eraser</string>
@@ -1474,8 +1476,7 @@
    </property>
    <property name="icon">
     <iconset resource="../OpenBoard.qrc">
-     <normaloff>:/images/stylusPalette/marker.svg</normaloff>
-     <normalon>:/images/stylusPalette/markerOn.svg</normalon>:/images/stylusPalette/marker.svg</iconset>
+     <normaloff>:/images/toolbar/marker.png</normaloff>:/images/toolbar/marker.png</iconset>
    </property>
    <property name="text">
     <string>Marker</string>

@@ -52,41 +52,67 @@ UBDesktopPalette::UBDesktopPalette(QWidget *parent, UBRightPalette* _rightPalett
 {
     QList<QAction*> actions;
 
-    mActionUniboard = new QAction(QIcon(":/images/toolbar/board.png"), tr("Show OpenBoard"), this);
+    mActionUniboard = new QAction(QIcon(":/images/toolbar/close.png"), tr("Show OpenBoard"), this);
     connect(mActionUniboard, SIGNAL(triggered()), this, SIGNAL(uniboardClick()));
-    actions << mActionUniboard;
-
-
-    actions << UBApplication::mainWindow->actionPen;
-    actions << UBApplication::mainWindow->actionEraser;
-    actions << UBApplication::mainWindow->actionMarker;
-    actions << UBApplication::mainWindow->actionSelector;
-    actions << UBApplication::mainWindow->actionPointer;
-
-    if (UBPlatformUtils::hasVirtualKeyboard())
-        actions << UBApplication::mainWindow->actionVirtualKeyboard;
 
     mActionCustomSelect = new QAction(QIcon(":/images/toolbar/captureArea.png"), tr("Capture Part of the Screen"), this);
     connect(mActionCustomSelect, SIGNAL(triggered()), this, SIGNAL(customClick()));
-    actions << mActionCustomSelect;
 
     mDisplaySelectAction = new QAction(QIcon(":/images/toolbar/captureScreen.png"), tr("Capture the Screen"), this);
     connect(mDisplaySelectAction, SIGNAL(triggered()), this, SIGNAL(screenClick()));
-    actions << mDisplaySelectAction;
 
     QIcon showHideIcon;
     showHideIcon.addPixmap(QPixmap(":/images/toolbar/eyeOpened.png"), QIcon::Normal , QIcon::On);
     showHideIcon.addPixmap(QPixmap(":/images/toolbar/eyeClosed.png"), QIcon::Normal , QIcon::Off);
     mShowHideAction = new QAction(showHideIcon, "", this);
     mShowHideAction->setCheckable(true);
-
     connect(mShowHideAction, SIGNAL(triggered(bool)), this, SLOT(showHideClick(bool)));
-    actions << mShowHideAction;
+
+    // Minimize button (uses same icon as maximize)
+    QIcon tabIcon(QPixmap(":/images/toolbar/stylusTab.png"));
+    mMinimizeAction = new QAction(tabIcon, tr("Hide the stylus palette"), this);
+    connect(mMinimizeAction, SIGNAL(triggered()), this, SLOT(onMinimizeClicked()));
+
+    // Desired order (top→bottom): minimize/expand, pen, marker, color palette, eraser, erase-all, area capture, screen capture, back to board
+    actions << mMinimizeAction;
+    // mark non-tool actions as ungrouped to avoid interference with stylus grouping
+    mMinimizeAction->setProperty("ungrouped", true);
+    actions << UBApplication::mainWindow->actionPen;
+    actions << UBApplication::mainWindow->actionMarker;
+    UBApplication::mainWindow->actionColorPicker->setProperty("ungrouped", true);
+    actions << UBApplication::mainWindow->actionColorPicker;
+    actions << UBApplication::mainWindow->actionEraser;
+    UBApplication::mainWindow->actionEraseDesktopAnnotations->setProperty("ungrouped", true);
+    actions << UBApplication::mainWindow->actionEraseDesktopAnnotations;
+    mActionCustomSelect->setProperty("ungrouped", true);
+    actions << mActionCustomSelect;
+    mDisplaySelectAction->setProperty("ungrouped", true);
+    actions << mDisplaySelectAction;
+    mActionUniboard->setProperty("ungrouped", true);
+    actions << mActionUniboard;
 
     setActions(actions);
-    setButtonIconSize(QSize(42, 42));
+    // Desktop palette icons: 80x80, icons only (no labels)
+    setButtonIconSize(QSize(80, 80));
+    setToolButtonStyle(Qt::ToolButtonIconOnly);
+    setBackgroundBrush(QBrush(QColor(30, 30, 30, 180)));
+    setStyleSheet(
+        QStringLiteral(
+            "QToolButton{width:80px;height:80px;border-radius:12px;margin:2px;}"
+            "QToolButton:hover{background:rgba(255,255,255,30);}"
+        )
+    );
+    if (layout()) {
+        layout()->setContentsMargins(4, 4, 4, 4);
+        layout()->setSpacing(4);
+    }
+    // Remove outer frame/border
+    setGrip(false);
 
     adjustSizeAndPosition();
+    // Set 'erase all' icon to match main toolbar style (clearPage)
+    if (UBApplication::mainWindow && UBApplication::mainWindow->actionEraseDesktopAnnotations)
+        UBApplication::mainWindow->actionEraseDesktopAnnotations->setIcon(QIcon(":/images/toolbar/clearPage.png"));
 
     //  This palette can be minimized
     QIcon maximizeIcon;
@@ -95,7 +121,8 @@ UBDesktopPalette::UBDesktopPalette(QWidget *parent, UBRightPalette* _rightPalett
     connect(mMaximizeAction, SIGNAL(triggered()), this, SLOT(maximizeMe()));
     connect(this, SIGNAL(maximizeStart()), this, SLOT(maximizeMe()));
     connect(this, SIGNAL(minimizeStart(eMinimizedLocation)), this, SLOT(minimizeMe(eMinimizedLocation)));
-    setMinimizePermission(true);
+    // Disable auto-minimize/restore logic; panel is fixed and should not auto-collapse
+    setMinimizePermission(false);
 
     connect(rightPalette, SIGNAL(resized()), this, SLOT(parentResized()));
 }
@@ -107,14 +134,7 @@ UBDesktopPalette::~UBDesktopPalette()
 }
 
 
-void UBDesktopPalette::adjustPosition()
-{
-    QPoint pos = this->pos();
-    if(this->pos().y() < 30){
-        pos.setY(30);
-        moveInsideParent(pos);
-    }
-}
+// adjustPosition is defined later to always pin the palette to left-center
 
 void UBDesktopPalette::disappearForCapture()
 {
@@ -172,9 +192,7 @@ void UBDesktopPalette::minimizeMe(eMinimizedLocation location)
 
     adjustSizeAndPosition();
 
-#ifdef UB_REQUIRES_MASK_UPDATE
-        emit refreshMask();
-#endif
+    // No mask refresh here; mask is managed by controller based on tool/background
 }
 
 //  Called when the user wants to maximize the palette
@@ -183,64 +201,70 @@ void UBDesktopPalette::maximizeMe()
     QList<QAction*> actions;
     clearLayout();
 
-    actions << mActionUniboard;
+    // Top→bottom: minimize, pen, marker, color palette, eraser, erase-all, capture area, capture screen, back to board
+    actions << mMinimizeAction;
+    mMinimizeAction->setProperty("ungrouped", true);
     actions << UBApplication::mainWindow->actionPen;
-    actions << UBApplication::mainWindow->actionEraser;
     actions << UBApplication::mainWindow->actionMarker;
-    actions << UBApplication::mainWindow->actionSelector;
-    actions << UBApplication::mainWindow->actionPointer;
-    if (UBPlatformUtils::hasVirtualKeyboard())
-        actions << UBApplication::mainWindow->actionVirtualKeyboard;
-
+    UBApplication::mainWindow->actionColorPicker->setProperty("ungrouped", true);
+    actions << UBApplication::mainWindow->actionColorPicker;
+    actions << UBApplication::mainWindow->actionEraser;
+    UBApplication::mainWindow->actionEraseDesktopAnnotations->setProperty("ungrouped", true);
+    actions << UBApplication::mainWindow->actionEraseDesktopAnnotations;
+    mActionCustomSelect->setProperty("ungrouped", true);
     actions << mActionCustomSelect;
+    mDisplaySelectAction->setProperty("ungrouped", true);
     actions << mDisplaySelectAction;
-    actions << mShowHideAction;
+    mActionUniboard->setProperty("ungrouped", true);
+    actions << mActionUniboard;
 
     setActions(actions);
 
     adjustSizeAndPosition();
+    if (UBApplication::mainWindow && UBApplication::mainWindow->actionEraseDesktopAnnotations)
+        UBApplication::mainWindow->actionEraseDesktopAnnotations->setIcon(QIcon(":/images/toolbar/clearPage.png"));
+
+    // Stick to the left center (avoid auto-minimize trigger at x==5)
+    QPoint p;
+    if (parentWidget())
+    {
+        p.setX(6);
+        p.setY((parentWidget()->height() - height()) / 2);
+        moveInsideParent(p);
+    }
 
     // Notify that the maximization has been done
     emit maximized();
-#ifdef UB_REQUIRES_MASK_UPDATE
-        emit refreshMask();
-#endif
+}
+
+void UBDesktopPalette::onMinimizeClicked()
+{
+    // Minimize immediately for snappier UX
+    performMinimize();
+}
+
+void UBDesktopPalette::performMinimize()
+{
+    minimizeMe(eMinimizedLocation_Left);
 }
 
 void UBDesktopPalette::showEvent(QShowEvent *event)
 {
     Q_UNUSED(event);
-    QIcon penIcon;
-    QIcon markerIcon;
-    QIcon eraserIcon;
-    penIcon.addFile(":images/stylusPalette/penArrow.svg", QSize(), QIcon::Normal, QIcon::Off);
-    penIcon.addFile(":images/stylusPalette/penOnArrow.svg", QSize(), QIcon::Normal, QIcon::On);
-    UBApplication::mainWindow->actionPen->setIcon(penIcon);
-    markerIcon.addFile(":images/stylusPalette/markerArrow.svg", QSize(), QIcon::Normal, QIcon::Off);
-    markerIcon.addFile(":images/stylusPalette/markerOnArrow.svg", QSize(), QIcon::Normal, QIcon::On);
-    UBApplication::mainWindow->actionMarker->setIcon(markerIcon);
-    eraserIcon.addFile(":images/stylusPalette/eraserArrow.svg", QSize(), QIcon::Normal, QIcon::Off);
-    eraserIcon.addFile(":images/stylusPalette/eraserOnArrow.svg", QSize(), QIcon::Normal, QIcon::On);
-    UBApplication::mainWindow->actionEraser->setIcon(eraserIcon);
-
+    // Use standard icons (no arrows) as on main toolbar
     adjustPosition();
+    // Ensure pinned position
+    if (parentWidget())
+        moveInsideParent(QPoint(6, (parentWidget()->height() - height()) / 2));
+    // No mask refresh here to avoid interfering with drawing mask
+    if (UBApplication::mainWindow && UBApplication::mainWindow->actionEraseDesktopAnnotations)
+        UBApplication::mainWindow->actionEraseDesktopAnnotations->setIcon(QIcon(":/images/toolbar/clearPage.png"));
 }
 
 void UBDesktopPalette::hideEvent(QHideEvent *event)
 {
     Q_UNUSED(event);
-    QIcon penIcon;
-    QIcon markerIcon;
-    QIcon eraserIcon;
-    penIcon.addFile(":images/stylusPalette/pen.svg", QSize(), QIcon::Normal, QIcon::Off);
-    penIcon.addFile(":images/stylusPalette/penOn.svg", QSize(), QIcon::Normal, QIcon::On);
-    UBApplication::mainWindow->actionPen->setIcon(penIcon);
-    markerIcon.addFile(":images/stylusPalette/marker.svg", QSize(), QIcon::Normal, QIcon::Off);
-    markerIcon.addFile(":images/stylusPalette/markerOn.svg", QSize(), QIcon::Normal, QIcon::On);
-    UBApplication::mainWindow->actionMarker->setIcon(markerIcon);
-    eraserIcon.addFile(":images/stylusPalette/eraser.svg", QSize(), QIcon::Normal, QIcon::Off);
-    eraserIcon.addFile(":images/stylusPalette/eraserOn.svg", QSize(), QIcon::Normal, QIcon::On);
-    UBApplication::mainWindow->actionEraser->setIcon(eraserIcon);
+    // Keep standard icons; nothing to do here
 }
 
 QPoint UBDesktopPalette::buttonPos(QAction *action)
@@ -256,6 +280,13 @@ QPoint UBDesktopPalette::buttonPos(QAction *action)
     return p;
 }
 
+void UBDesktopPalette::adjustPosition()
+{
+    // Pin to left center regardless of previous position
+    if (!parentWidget()) return;
+    moveInsideParent(QPoint(6, (parentWidget()->height() - height()) / 2));
+}
+
 
 int UBDesktopPalette::getParentRightOffset()
 {
@@ -264,11 +295,5 @@ int UBDesktopPalette::getParentRightOffset()
 
 void UBDesktopPalette::parentResized()
 {
-    QPoint p = pos();
-    if (minimizedLocation() == eMinimizedLocation_Right)
-    {
-        p.setX(parentWidget()->width() - getParentRightOffset() -width());
-    }
-
-    moveInsideParent(p);
+    adjustPosition();
 }

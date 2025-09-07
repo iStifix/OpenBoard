@@ -38,7 +38,7 @@
 using namespace merge_lib;
 
 LZWDecode::LZWDecode():
-      _predict(NULL),
+      _predict(nullptr),
       _dummy(""),
       _encoded(_dummy),
       _curSymbolIndex(0),
@@ -227,6 +227,5 @@ bool LZWDecode::decode(std::string & encoded)
    }
    return true;    
 }
-
 
 

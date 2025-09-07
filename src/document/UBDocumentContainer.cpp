@@ -39,7 +39,7 @@
 
 UBDocumentContainer::UBDocumentContainer(QObject * parent)
     :QObject(parent)
-    ,mCurrentDocument(NULL)
+    ,mCurrentDocument(nullptr)
 {}
 
 UBDocumentContainer::~UBDocumentContainer()

@@ -11,7 +11,14 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>ColorPickerPalette</string>
+   <string>Палитра цветов</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">QWidget#ColorPickerPalette{background:rgba(30,30,30,245); border-radius:12px;}
+QLabel{color:white; font-weight:600; background:rgba(0,0,0,110); border-radius:6px; padding:4px 8px;}
+QSlider{color:white;}
+QPushButton{border-radius:12px;}
+</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <property name="spacing">
@@ -30,6 +37,13 @@
     <number>12</number>
    </property>
    <item>
+    <widget class="QLabel" name="labelPicker">
+     <property name="text">
+      <string>Оттенок / Насыщенность</string>
+     </property>
+    </widget>
+   </item>
+   <item>
     <layout class="QHBoxLayout" name="wheelLayout">
      <property name="spacing">
       <number>15</number>
@@ -45,19 +59,46 @@
       </widget>
      </item>
      <item>
-      <widget class="QSlider" name="brightnessSlider">
-       <property name="minimumSize">
-        <size>
-         <width>60</width>
-         <height>200</height>
-        </size>
+      <layout class="QVBoxLayout" name="verticalLayout_brightness">
+       <property name="leftMargin">
+        <number>0</number>
        </property>
-       <property name="orientation">
-        <enum>Qt::Orientation::Vertical</enum>
+       <property name="rightMargin">
+        <number>0</number>
        </property>
-      </widget>
+       <item>
+        <widget class="QLabel" name="labelBrightness">
+         <property name="text">
+          <string>Яркость</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignHCenter|Qt::AlignVCenter</set>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QSlider" name="brightnessSlider">
+         <property name="minimumSize">
+          <size>
+           <width>60</width>
+           <height>200</height>
+          </size>
+         </property>
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
+         </property>
+        </widget>
+       </item>
+      </layout>
      </item>
     </layout>
+   </item>
+   <item>
+    <widget class="QLabel" name="labelPresets">
+     <property name="text">
+      <string>Пресеты</string>
+     </property>
+    </widget>
    </item>
    <item>
     <layout class="QHBoxLayout" name="presetLayout">
@@ -124,20 +165,53 @@
        </property>
       </widget>
      </item>
-    </layout>
-   </item>
+   </layout>
+  </item>
    <item>
-    <widget class="QSlider" name="widthSlider">
-     <property name="minimumSize">
-      <size>
-       <width>200</width>
-       <height>80</height>
-      </size>
-     </property>
-     <property name="orientation">
-      <enum>Qt::Orientation::Horizontal</enum>
+    <widget class="QLabel" name="labelSize">
+     <property name="text">
+      <string>Толщина линии</string>
      </property>
     </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout_width">
+     <property name="spacing">
+      <number>8</number>
+     </property>
+     <item>
+      <widget class="QSlider" name="widthSlider">
+       <property name="minimumSize">
+        <size>
+         <width>180</width>
+         <height>50</height>
+        </size>
+       </property>
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="strokePreview">
+       <property name="minimumSize">
+        <size>
+         <width>56</width>
+         <height>36</height>
+        </size>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">QLabel#strokePreview{ color:white; font-weight:600; font-size:20px; }</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignHCenter|Qt::AlignVCenter</set>
+       </property>
+       <property name="text">
+        <string>1</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </item>
   </layout>
  </widget>

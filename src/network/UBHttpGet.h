@@ -40,7 +40,7 @@ class UBHttpGet : public QObject
     Q_OBJECT
 
     public:
-        UBHttpGet(QObject* parent = 0);
+        UBHttpGet(QObject* parent = nullptr);
         virtual ~UBHttpGet();
 
         QNetworkReply* get(QUrl pUrl, QPointF pPoint = QPointF(0, 0), QSize pSize = QSize(0, 0), bool isBackground = false);
@@ -75,4 +75,3 @@ class UBHttpGet : public QObject
 };
 
 #endif /* UBHTTPGET_H_ */
-

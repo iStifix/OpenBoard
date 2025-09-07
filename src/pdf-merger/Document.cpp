@@ -43,7 +43,7 @@ using namespace merge_lib;
 const std::string firstObj("%PDF-1.4\n1 0 obj\n<<\n/Title ()/Creator ()/Producer (Qt 4.5.0 (C) 1992-2009 Nokia Corporation and/or its subsidiary(-ies))/CreationDate (D:20090424120829)\n>>\nendobj\n");
 const std::string zeroStr("0000000000");
 Document::Document(const char * fileName):
-    _root(0), _pages(), _documentName(fileName), _maxObjectNumber(0)
+    _root(nullptr), _pages(), _documentName(fileName), _maxObjectNumber(0)
 {
 
 }
@@ -67,7 +67,7 @@ Page * Document::getPage(unsigned int pageNumber)
 {
    if(!_pages.count(pageNumber))
    {
-      return 0;
+      return nullptr;
 /*      std::stringstream error;
       error << "There is no page with " 
          << pageNumber << " number in " 
@@ -131,5 +131,4 @@ Object * Document::getDocumentObject()
 {
    return _root;
 }
-
 

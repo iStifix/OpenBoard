@@ -81,7 +81,8 @@ void UBServerXMLHttpRequest::post(const QUrl& pUrl, const QByteArray& payload)
     //request.setRawHeader("ACCEPT", "application/xml");
     request.setHeader(QNetworkRequest::ContentLengthHeader, payload.length());
 
-    foreach(QString key, mExtraHeaders.keys())
+    const auto headerKeys1 = mExtraHeaders.keys();
+    for (const auto& key : headerKeys1)
     {
         request.setRawHeader(key.toUtf8(), mExtraHeaders.value(key).toUtf8());
 
@@ -129,7 +130,8 @@ void UBServerXMLHttpRequest::put(const QUrl& pUrl, const QByteArray& payload)
     request.setRawHeader("ACCEPT", "application/xml");
     request.setHeader(QNetworkRequest::ContentLengthHeader, payload.length());
 
-    foreach(QString key, mExtraHeaders.keys())
+    const auto headerKeys2 = mExtraHeaders.keys();
+    for (const auto& key : headerKeys2)
     {
         request.setRawHeader(key.toUtf8(), mExtraHeaders.value(key).toUtf8());
     }
@@ -162,7 +164,8 @@ void UBServerXMLHttpRequest::get(const QUrl& pUrl)
 
     request.setRawHeader("ACCEPT", "application/xml");
 
-    foreach(QString key, mExtraHeaders.keys())
+    const auto headerKeys3 = mExtraHeaders.keys();
+    for (const auto& key : headerKeys3)
     {
         request.setRawHeader(key.toUtf8(), mExtraHeaders.value(key).toUtf8());
     }
@@ -195,7 +198,8 @@ void UBServerXMLHttpRequest::syntheticRubyOnRailsDelete(const QUrl& pUrl)
     request.setRawHeader("ACCEPT", "application/xml");
     request.setRawHeader("X_HTTP_METHOD_OVERRIDE", "delete");
 
-    foreach(QString key, mExtraHeaders.keys())
+    const auto headerKeys4 = mExtraHeaders.keys();
+    for (const auto& key : headerKeys4)
     {
         request.setRawHeader(key.toUtf8(), mExtraHeaders.value(key).toUtf8());
     }
@@ -292,7 +296,7 @@ void UBServerXMLHttpRequest::finished()
     emit finished(!mHasError, mReplyContent);
 
     mReply->deleteLater();
-    mReply = 0;
+    mReply = nullptr;
 
     deleteLater();
 }
@@ -324,4 +328,3 @@ void UBServerXMLHttpRequest::setVerbose(bool pVerbose)
 {
     mIsVerbose = pVerbose;
 }
-

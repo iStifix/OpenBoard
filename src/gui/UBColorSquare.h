@@ -15,12 +15,16 @@ public:
 
 signals:
     void colorSelected(const QColor& color);
+    void colorHovered(const QColor& color, const QPoint& globalPos);
+    void hoverEnded();
 
 protected:
     void paintEvent(QPaintEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
+    void leaveEvent(QEvent* event) override;
 
 private:
     void selectColor(const QPoint& pos);
+    void hoverColor(const QPoint& pos);
 };

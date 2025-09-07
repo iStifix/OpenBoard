@@ -8,7 +8,12 @@
 
 #include <QColor>
 #include <QShowEvent>
+#include <QMouseEvent>
 #include <QSignalBlocker>
+#include <QPainter>
+#include <QPainterPath>
+#include <QGuiApplication>
+#include <QScreen>
 
 UBColorPickerPalette::UBColorPickerPalette(QWidget* parent)
     : UBFloatingPalette(Qt::TopLeftCorner, parent)
@@ -17,6 +22,8 @@ UBColorPickerPalette::UBColorPickerPalette(QWidget* parent)
     , mUpdatingPalette(false)
 {
     mUi.setupUi(this);
+    // Make palette non-draggable
+    setGrip(false);
 
     mPresetButtons << mUi.colorButton0 << mUi.colorButton1 << mUi.colorButton2
                    << mUi.colorButton3 << mUi.colorButton4;
@@ -33,7 +40,7 @@ UBColorPickerPalette::UBColorPickerPalette(QWidget* parent)
         applyColorIndex(5);
     });
 
-    mUi.widthSlider->setRange(1, 30);
+    mUi.widthSlider->setRange(1, 90);
     mUi.widthSlider->setValue(static_cast<int>(UBDrawingController::drawingController()->currentToolWidth()));
     mUi.widthSlider->setTickPosition(QSlider::NoTicks);
     mUi.brightnessSlider->setRange(0, 255);
@@ -48,6 +55,7 @@ UBColorPickerPalette::UBColorPickerPalette(QWidget* parent)
 
     connect(mUi.colorSquare, &UBColorSquare::colorSelected, this, &UBColorPickerPalette::onSquareColorSelected);
     connect(mUi.widthSlider, &QSlider::valueChanged, this, &UBColorPickerPalette::onWidthSliderChanged);
+    connect(mUi.widthSlider, &QSlider::valueChanged, this, [this](int){ updateStrokePreview(); });
     connect(mUi.brightnessSlider, &QSlider::valueChanged, this, &UBColorPickerPalette::updateCustomColor);
 
     connect(UBDrawingController::drawingController(), &UBDrawingController::colorPaletteChanged,
@@ -58,13 +66,60 @@ UBColorPickerPalette::UBColorPickerPalette(QWidget* parent)
                 this, &UBColorPickerPalette::refreshPalette);
 
     refreshPalette();
+    updateStrokePreview();
+
+    // Preview bubble initialization (top-level window to allow going outside palette bounds)
+    mPreview = new PreviewBubble(nullptr);
+    mPreview->hide();
+
+    // Live hover updates over gradient square (throttled for performance)
+    mHoverClock.start();
+    mLastHoverTick = -1000;
+    connect(mUi.colorSquare, &UBColorSquare::colorHovered, this, [this](const QColor& c, const QPoint& globalPos){
+        qint64 now = mHoverClock.elapsed();
+        if (now - mLastHoverTick < 16) return; // ~60 FPS cap
+        mLastHoverTick = now;
+        if (!mPreview)
+            return;
+        QColor previewColor = c;
+        // Apply current brightness to hovered color for accurate preview
+        previewColor.setHsv(previewColor.hue(), previewColor.saturation(), mUi.brightnessSlider->value());
+        mPreview->setColor(previewColor);
+        const int d = 128;
+        const int margin = 12;
+        // Prefer showing strictly above the finger
+        int gx = globalPos.x() - d/2;
+        int gy = globalPos.y() - d - margin;
+        // Clamp to screen to keep bubble visible on screen, but allow going outside the palette
+        QScreen* scr = QGuiApplication::screenAt(globalPos);
+        QRect bounds = scr ? scr->geometry() : QGuiApplication::primaryScreen()->geometry();
+        gx = qMax(bounds.left() + 2, qMin(gx, bounds.right() - d - 2));
+        gy = qMax(bounds.top() + 2, qMin(gy, bounds.bottom() - d - 2));
+        if (!mPreview->isVisible())
+        {
+            mPreview->resize(d, d);
+            mPreview->move(gx, gy);
+            mPreview->show();
+        }
+        else
+        {
+            mPreview->move(gx, gy);
+        }
+        mPreview->raise();
+    });
+    connect(mUi.colorSquare, &UBColorSquare::hoverEnded, this, [this](){ if (mPreview) mPreview->hide(); });
 }
 
 void UBColorPickerPalette::onSquareColorSelected(const QColor& color)
 {
     mHue = color.hue();
     mSaturation = color.saturation();
-    updateCustomColor();
+    // Avoid heavy updates during drag; apply on mouse release or click
+    if (!(QGuiApplication::mouseButtons() & Qt::LeftButton))
+    {
+        updateCustomColor();
+        updateStrokePreview();
+    }
 }
 
 void UBColorPickerPalette::updateCustomColor()
@@ -120,14 +175,20 @@ void UBColorPickerPalette::onWidthSliderChanged(int value)
 void UBColorPickerPalette::hideEvent(QHideEvent* event)
 {
     UBFloatingPalette::hideEvent(event);
+    // Stop capturing global events
+    qApp->removeEventFilter(this);
+    if (mPreview) mPreview->hide();
     emit closed();
 }
 
 void UBColorPickerPalette::showEvent(QShowEvent* event)
 {
     UBFloatingPalette::showEvent(event);
+    // Capture global clicks to auto-close when clicking outside or starting to draw
+    qApp->installEventFilter(this);
     refreshPalette();
     mUi.widthSlider->setValue(static_cast<int>(UBDrawingController::drawingController()->currentToolWidth()));
+    if (mPreview) mPreview->hide();
 }
 
 void UBColorPickerPalette::refreshPalette()
@@ -175,4 +236,98 @@ void UBColorPickerPalette::refreshPalette()
     }
 
     mUpdatingPalette = false;
+    updateStrokePreview();
+
+}
+
+void UBColorPickerPalette::updateStrokePreview()
+{
+    if (!mUi.strokePreview)
+        return;
+    // Just a number, no px suffix — максимально компактно
+    int penW = mUi.widthSlider->value();
+    mUi.strokePreview->setPixmap(QPixmap());
+    mUi.strokePreview->setText(QString::number(penW));
+}
+
+// PreviewBubble implementation
+UBColorPickerPalette::PreviewBubble::PreviewBubble(QWidget* parent)
+    : QWidget(parent)
+{
+    setAttribute(Qt::WA_TransparentForMouseEvents, true);
+    setAttribute(Qt::WA_NoSystemBackground, true);
+    setAttribute(Qt::WA_ShowWithoutActivating, true);
+    setWindowFlags(Qt::ToolTip | Qt::FramelessWindowHint);
+    setAttribute(Qt::WA_TranslucentBackground, true);
+}
+
+void UBColorPickerPalette::PreviewBubble::setColor(const QColor& c)
+{
+    if (mColor != c)
+    {
+        mColor = c;
+        update();
+    }
+}
+
+void UBColorPickerPalette::PreviewBubble::paintEvent(QPaintEvent* event)
+{
+    Q_UNUSED(event);
+    QPainter p(this);
+    p.setRenderHint(QPainter::Antialiasing, true);
+
+    QRectF r = rect().adjusted(2,2,-2,-2);
+    // Shadow
+    QPainterPath shadowPath; shadowPath.addEllipse(r.adjusted(2,2,2,2));
+    p.fillPath(shadowPath, QColor(0,0,0,40));
+    // Fill
+    p.setBrush(mColor);
+    p.setPen(Qt::NoPen);
+    p.drawEllipse(r);
+    // Soft highlight ring
+    QPen ring(QColor(255,255,255,180)); ring.setWidth(3);
+    p.setPen(ring);
+    p.setBrush(Qt::NoBrush);
+    p.drawEllipse(r);
+}
+
+bool UBColorPickerPalette::eventFilter(QObject* obj, QEvent* event)
+{
+    Q_UNUSED(obj);
+    if (!isVisible())
+        return false;
+
+    switch (event->type())
+    {
+        case QEvent::MouseButtonPress:
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+        {
+            auto* me = static_cast<QMouseEvent*>(event);
+            QPoint gp = me->globalPosition().toPoint();
+            QPoint lp = mapFromGlobal(gp);
+            if (!rect().contains(lp))
+                hide();
+            break;
+        }
+#else
+        {
+            auto* me = static_cast<QMouseEvent*>(event);
+            QPoint lp = mapFromGlobal(me->globalPos());
+            if (!rect().contains(lp))
+                hide();
+            break;
+        }
+#endif
+        case QEvent::MouseButtonRelease:
+            // Apply final color selection after dragging
+            updateCustomColor();
+            updateStrokePreview();
+            break;
+        case QEvent::TouchBegin:
+            hide();
+            break;
+        default:
+            break;
+    }
+    return false;
 }

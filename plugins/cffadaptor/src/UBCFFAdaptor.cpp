@@ -321,8 +321,9 @@ bool UBCFFAdaptor::deleteDir(const QString& pDirPath) const
 
     if (dir.exists())
     {
-        foreach(QFileInfo dirContent, dir.entryInfoList(QDir::Files | QDir::Dirs
-                | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System, QDir::Name))
+        const auto entries = dir.entryInfoList(QDir::Files | QDir::Dirs
+                | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System, QDir::Name);
+        for (const auto& dirContent : entries)
         {
             if (dirContent.isDir())
             {
@@ -358,7 +359,8 @@ bool UBCFFAdaptor::freeDir(const QString &dir)
 }
 void UBCFFAdaptor::freeTmpDirs()
 {
-    foreach (QString dir, tmpDirs)
+    const auto dirs = tmpDirs;
+    for (const auto& dir : dirs)
         freeDir(dir);
 }
 
@@ -924,7 +926,8 @@ bool UBCFFAdaptor::UBToCFFConverter::itIsSupportedFormat(const QString &format) 
 
 bool UBCFFAdaptor::UBToCFFConverter::itIsFormatToConvert(const QString &format) const
 {
-    foreach (QString f, ubzFormatsToConvert.split(","))
+    const auto parts = ubzFormatsToConvert.split(",");
+    for (const auto& f : parts)
     {
         if (format == f)
             return true;
@@ -938,7 +941,8 @@ bool UBCFFAdaptor::UBToCFFConverter::itIsSVGElementAttribute(const QString ItemT
   
     allowedElementAttributes.remove("/t");
     allowedElementAttributes.remove(" ");
-    foreach(QString attr, allowedElementAttributes.split(","))
+    const auto attrs = allowedElementAttributes.split(",");
+    for (const auto& attr : attrs)
     {
         if (AttrName == attr.trimmed())
             return true;
@@ -949,7 +953,8 @@ bool UBCFFAdaptor::UBToCFFConverter::itIsSVGElementAttribute(const QString ItemT
 
 bool UBCFFAdaptor::UBToCFFConverter::itIsIWBAttribute(const QString &attribute) const
 {
-    foreach (QString attr, iwbElementAttributes.split(","))
+    const auto attrs = iwbElementAttributes.split(",");
+    for (const auto& attr : attrs)
     {
        if (attribute == attr.trimmed())
            return true;
@@ -959,7 +964,8 @@ bool UBCFFAdaptor::UBToCFFConverter::itIsIWBAttribute(const QString &attribute) 
 
 bool UBCFFAdaptor::UBToCFFConverter::itIsUBZAttributeToConvert(const QString &attribute) const
 {
-    foreach (QString attr, ubzElementAttributesToConvert.split(","))
+    const auto attrs = ubzElementAttributesToConvert.split(",");
+    for (const auto& attr : attrs)
     {
         if (attribute == attr.trimmed())
             return true;
@@ -1024,7 +1030,7 @@ QTransform UBCFFAdaptor::UBToCFFConverter::getTransformFromUBZ(const QDomElement
 
     if (6 <= transformParameters.count())
     {
-        QTransform *tr = NULL;
+        QTransform *tr = nullptr;
         tr = new QTransform(transformParameters.at(0).toDouble(),
             transformParameters.at(1).toDouble(),
             transformParameters.at(2).toDouble(),

@@ -56,13 +56,13 @@ UBItem::~UBItem()
 
 UBGraphicsItem::~UBGraphicsItem()
 {
-    if (mDelegate!=NULL)
+    if (mDelegate!=nullptr)
         delete mDelegate;
 }
 
 void UBGraphicsItem::setDelegate(UBGraphicsItemDelegate* delegate)
 {
-    Q_ASSERT(mDelegate==NULL);
+    Q_ASSERT(mDelegate==nullptr);
     mDelegate = delegate;
 }
 

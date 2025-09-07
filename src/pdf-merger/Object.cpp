@@ -74,7 +74,7 @@ Object * Object::_getClone(std::map<unsigned int, Object *> & clones)
       Object * currentObject = (*currentChild).second.first;
       unsigned int childObjectNumber = currentObject->getObjectNumber();
 
-      Object * cloneOfCurrentChild = 0;
+      Object * cloneOfCurrentChild = nullptr;
 
       if(currentObject->isPassed())
       {
@@ -606,4 +606,3 @@ Object* Object::findPatternInObjOrParents(const std::string &pattern)
    }
    return foundObj;
 }
-

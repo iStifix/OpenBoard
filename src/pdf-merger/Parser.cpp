@@ -61,7 +61,7 @@ Document * Parser::parseDocument(const char * fileName)
    {
       _clearParser();
       delete _document;
-      _document = NULL;
+      _document = nullptr;
       throw;
    }
    return _document;
@@ -111,7 +111,7 @@ void Parser::_createDocument(const char * docName)
 
 void Parser::_clearParser()
 {
-   _root = 0;
+   _root = nullptr;
    _fileContent.clear();
    _fileContent.shrink_to_fit();
    _objects.clear();
@@ -915,4 +915,3 @@ unsigned int Parser::findEndOfElementContent(const std::string &content,unsigned
    }
    return foundEnd;
 }
-

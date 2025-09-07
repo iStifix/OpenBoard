@@ -41,7 +41,7 @@ using namespace merge_lib;
 
 Parser Merger::_parser;
 
-Merger::Merger():_baseDocuments(),_overlayDocument(0)
+Merger::Merger():_baseDocuments(),_overlayDocument(nullptr)
 {
 
 }
@@ -58,7 +58,7 @@ Merger::~Merger()
    if( _overlayDocument )
    {
       delete _overlayDocument;
-      _overlayDocument = 0;
+      _overlayDocument = nullptr;
    }
    _baseDocuments.clear();
 }
@@ -77,7 +77,7 @@ void Merger::addOverlayDocument(const char * docName)
    if( _overlayDocument )
    {
       delete _overlayDocument;
-      _overlayDocument = 0;
+      _overlayDocument = nullptr;
    }
    if( !_overlayDocument )
    {
@@ -105,7 +105,7 @@ void Merger::merge(const char * overlayDocName, const MergeDescription & pagesTo
    for(; pageIterator != pagesToMerge.end(); ++pageIterator )
    {            
       Page * destinationPage = _overlayDocument->getPage( (*pageIterator).overlayPageNumber);
-      if( destinationPage == 0 )
+      if( destinationPage == nullptr )
       {
          std::stringstream error;
          error << "There is no page with " << (*pageIterator).overlayPageNumber << 
@@ -113,7 +113,7 @@ void Merger::merge(const char * overlayDocName, const MergeDescription & pagesTo
          throw Exception(error);
       }
       Document * sourceDocument = _baseDocuments[(*pageIterator).baseDocumentName];
-      Page * sourcePage = (sourceDocument == 0)? 0 : sourceDocument->getPage((*pageIterator).basePageNumber);
+      Page * sourcePage = (sourceDocument == nullptr)? nullptr : sourceDocument->getPage((*pageIterator).basePageNumber);
       bool isPageDuplicated = false;
       if( sourcePage )
       {
@@ -144,4 +144,3 @@ void Merger::saveMergedDocumentsAs(const char * outDocumentName)
         throw;
     }
 }
-

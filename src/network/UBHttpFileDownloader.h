@@ -38,7 +38,7 @@ class UBHttpFileDownloader : public QObject
         Q_OBJECT;
 
     public:
-        UBHttpFileDownloader(QObject *parent = 0);
+        UBHttpFileDownloader(QObject *parent = nullptr);
 
         virtual ~UBHttpFileDownloader();
 
