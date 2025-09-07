@@ -73,6 +73,7 @@ INCLUDEPATH += plugins/cffadaptor/src
 FORMS += resources/forms/mainWindow.ui \
    resources/forms/preferences.ui \
    resources/forms/brushProperties.ui \
+   resources/forms/colorPickerPalette.ui \
    resources/forms/documents.ui \
    resources/forms/blackoutWidget.ui \
    resources/forms/trapFlash.ui \

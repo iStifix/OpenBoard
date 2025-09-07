@@ -51,7 +51,7 @@ int UBSettings::defaultCrossSize = 24;
 int UBSettings::minCrossSize = 12;
 int UBSettings::maxCrossSize = 96; //TODO: user-settable?
 bool UBSettings::intermediateLines = false;
-int UBSettings::colorPaletteSize = 5;
+int UBSettings::colorPaletteSize = 6;
 int UBSettings::objectFrameWidth = 20;
 int UBSettings::boardMargin = 10;
 
@@ -745,12 +745,13 @@ QList<QColor> UBSettings::markerColors(bool onDarkBackground)
 
 int UBSettings::eraserWidthIndex()
 {
-    return value("Board/EraserCircleWidthIndex", 1).toInt();
+    return 1;
 }
 
 void UBSettings::setEraserWidthIndex(int index)
 {
-    setValue("Board/EraserCircleWidthIndex", index);
+    Q_UNUSED(index);
+    setValue("Board/EraserCircleWidthIndex", 1);
 }
 
 qreal UBSettings::eraserFineWidth()

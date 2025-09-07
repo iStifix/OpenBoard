@@ -75,7 +75,6 @@
 #include "gui/UBMessageWindow.h"
 #include "gui/UBThumbnailScene.h"
 #include "gui/UBToolWidget.h"
-#include "gui/UBToolbarButtonGroup.h"
 
 #include "podcast/UBPodcastController.h"
 
@@ -353,77 +352,6 @@ void UBBoardController::setCursorFromAngle(qreal angle, const QPoint offset)
 void UBBoardController::setupToolbar()
 {
     UBSettings *settings = UBSettings::settings();
-
-    // Setup color choice widget
-    QList<QAction *> colorActions;
-    colorActions.append(mMainWindow->actionColor0);
-    colorActions.append(mMainWindow->actionColor1);
-    colorActions.append(mMainWindow->actionColor2);
-    colorActions.append(mMainWindow->actionColor3);
-    colorActions.append(mMainWindow->actionColor4);
-
-    UBToolbarButtonGroup *colorChoice =
-            new UBToolbarButtonGroup(mMainWindow->boardToolBar, colorActions);
-    colorChoice->setLabel(tr("Color"));
-
-    mMainWindow->boardToolBar->insertWidget(mMainWindow->actionBackgrounds, colorChoice);
-
-    connect(settings->appToolBarDisplayText, SIGNAL(changed(QVariant)), colorChoice, SLOT(displayText(QVariant)));
-    connect(colorChoice, SIGNAL(activated(int)), this, SLOT(setColorIndex(int)));
-    connect(UBDrawingController::drawingController(), SIGNAL(colorIndexChanged(int)), colorChoice, SLOT(setCurrentIndex(int)));
-    connect(UBDrawingController::drawingController(), SIGNAL(colorIndexChanged(int)), UBDrawingController::drawingController(), SIGNAL(colorPaletteChanged()));
-    connect(UBDrawingController::drawingController(), SIGNAL(colorPaletteChanged()), colorChoice, SLOT(colorPaletteChanged()));
-    connect(UBDrawingController::drawingController(), SIGNAL(colorPaletteChanged()), this, SLOT(colorPaletteChanged()));
-
-    colorChoice->displayText(QVariant(settings->appToolBarDisplayText->get().toBool()));
-    colorChoice->colorPaletteChanged();
-    colorChoice->setCurrentIndex(settings->penColorIndex());
-    colorActions.at(settings->penColorIndex())->setChecked(true);
-
-    // Setup line width choice widget
-    QList<QAction *> lineWidthActions;
-    lineWidthActions.append(mMainWindow->actionLineSmall);
-    lineWidthActions.append(mMainWindow->actionLineMedium);
-    lineWidthActions.append(mMainWindow->actionLineLarge);
-
-    UBToolbarButtonGroup *lineWidthChoice =
-            new UBToolbarButtonGroup(mMainWindow->boardToolBar, lineWidthActions);
-
-    connect(settings->appToolBarDisplayText, SIGNAL(changed(QVariant)), lineWidthChoice, SLOT(displayText(QVariant)));
-
-    connect(lineWidthChoice, SIGNAL(activated(int))
-            , UBDrawingController::drawingController(), SLOT(setLineWidthIndex(int)));
-
-    connect(UBDrawingController::drawingController(), SIGNAL(lineWidthIndexChanged(int))
-            , lineWidthChoice, SLOT(setCurrentIndex(int)));
-
-    lineWidthChoice->displayText(QVariant(settings->appToolBarDisplayText->get().toBool()));
-    lineWidthChoice->setCurrentIndex(settings->penWidthIndex());
-    lineWidthActions.at(settings->penWidthIndex())->setChecked(true);
-
-    mMainWindow->boardToolBar->insertWidget(mMainWindow->actionBackgrounds, lineWidthChoice);
-
-    //-----------------------------------------------------------//
-    // Setup eraser width choice widget
-
-    QList<QAction *> eraserWidthActions;
-    eraserWidthActions.append(mMainWindow->actionEraserSmall);
-    eraserWidthActions.append(mMainWindow->actionEraserMedium);
-    eraserWidthActions.append(mMainWindow->actionEraserLarge);
-
-    UBToolbarButtonGroup *eraserWidthChoice =
-            new UBToolbarButtonGroup(mMainWindow->boardToolBar, eraserWidthActions);
-
-    mMainWindow->boardToolBar->insertWidget(mMainWindow->actionBackgrounds, eraserWidthChoice);
-
-    connect(settings->appToolBarDisplayText, SIGNAL(changed(QVariant)), eraserWidthChoice, SLOT(displayText(QVariant)));
-    connect(eraserWidthChoice, SIGNAL(activated(int)), UBDrawingController::drawingController(), SLOT(setEraserWidthIndex(int)));
-
-    eraserWidthChoice->displayText(QVariant(settings->appToolBarDisplayText->get().toBool()));
-    eraserWidthChoice->setCurrentIndex(settings->eraserWidthIndex());
-    eraserWidthActions.at(settings->eraserWidthIndex())->setChecked(true);
-
-    mMainWindow->boardToolBar->insertSeparator(mMainWindow->actionBackgrounds);
 
     //-----------------------------------------------------------//
 
@@ -2153,15 +2081,6 @@ void UBBoardController::setColorIndex(int pColorIndex)
     }
 }
 
-void UBBoardController::colorPaletteChanged()
-{
-    mPenColorOnDarkBackground = UBSettings::settings()->penColor(true);
-    mPenColorOnLightBackground = UBSettings::settings()->penColor(false);
-    mMarkerColorOnDarkBackground = UBSettings::settings()->markerColor(true);
-    mMarkerColorOnLightBackground = UBSettings::settings()->markerColor(false);
-}
-
-
 qreal UBBoardController::currentZoom() const
 {
     if (mControlView)
@@ -2485,6 +2404,9 @@ UBGraphicsWidgetItem *UBBoardController::addW3cWidget(const QUrl &pUrl, const QP
 
 void UBBoardController::cut()
 {
+    if (!mActiveScene)
+        return;
+
     //---------------------------------------------------------//
 
     QList<QGraphicsItem*> selectedItems;
@@ -2529,6 +2451,9 @@ void UBBoardController::cut()
 
 void UBBoardController::copy()
 {
+    if (!mActiveScene)
+        return;
+
     QList<UBItem*> selected;
 
     foreach(QGraphicsItem* gi, mActiveScene->selectedItems())
@@ -2578,6 +2503,9 @@ bool zLevelLessThan( UBItem* s1, UBItem* s2)
 
 void UBBoardController::processMimeData(const QMimeData* pMimeData, const QPointF& pPos)
 {
+    if (!mActiveScene)
+        return;
+
     if (pMimeData->hasFormat(UBApplication::mimeTypeUniboardPageItem))
     {
         const UBMimeDataGraphicsItem* mimeData = qobject_cast <const UBMimeDataGraphicsItem*>(pMimeData);

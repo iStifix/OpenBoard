@@ -49,6 +49,7 @@
 #include "gui/UBFavoriteToolPalette.h"
 #include "gui/UBStartupHintsPalette.h"
 #include "gui/UBPageNavigationWidget.h"
+#include "gui/UBColorPickerPalette.h"
 
 #include "web/UBWebController.h"
 
@@ -73,6 +74,9 @@
 
 #include "core/UBPersistenceManager.h"
 #include "core/memcheck.h"
+
+#include <QAbstractButton>
+#include <QToolBar>
 
 inline constexpr int longpress_interval = 350;
 
@@ -334,6 +338,9 @@ void UBBoardPaletteManager::setupPalettes()
     mPagePalette->adjustSizeAndPosition();
     mPagePalette->hide();
 
+    mColorPickerPalette = new UBColorPickerPalette(mContainer);
+    mColorPickerPalette->hide();
+
     connect(UBSettings::settings()->appToolBarOrientationVertical, SIGNAL(changed(QVariant)), this, SLOT(changeStylusPaletteOrientation(QVariant)));
 }
 
@@ -482,6 +489,9 @@ void UBBoardPaletteManager::connectPalettes()
     connect(UBApplication::mainWindow->actionRuledDarkBackground, SIGNAL(triggered()), this, SLOT(changeBackground()));
     connect(UBApplication::mainWindow->actionSeyesRuledDarkBackground, SIGNAL(triggered()), this, SLOT(changeBackground()));
     connect(UBApplication::mainWindow->actionPodcast, SIGNAL(triggered(bool)), this, SLOT(tooglePodcastPalette(bool)));
+
+    connect(UBApplication::mainWindow->actionColorPicker, SIGNAL(toggled(bool)), this, SLOT(toggleColorPickerPalette(bool)));
+    connect(mColorPickerPalette, SIGNAL(closed()), this, SLOT(colorPickerPaletteClosed()));
 
     connect(UBApplication::mainWindow->actionAddItemToCurrentPage, SIGNAL(triggered()), this, SLOT(addItemToCurrentPage()));
     connect(UBApplication::mainWindow->actionAddItemToNewPage, SIGNAL(triggered()), this, SLOT(addItemToNewPage()));
@@ -706,6 +716,57 @@ void UBBoardPaletteManager::pagePaletteClosed()
     UBApplication::mainWindow->actionPages->setChecked(false);
 }
 
+
+
+void UBBoardPaletteManager::toggleColorPickerPalette(bool checked)
+{
+    if (!mColorPickerPalette)
+        return;
+
+    mColorPickerPalette->setVisible(checked);
+    if (checked)
+    {
+        UBApplication::mainWindow->actionBackgrounds->setChecked(false);
+        UBApplication::mainWindow->actionErase->setChecked(false);
+
+        mColorPickerPalette->adjustSizeAndPosition();
+
+        QAbstractButton* button = nullptr;
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+        if (!UBApplication::mainWindow->actionColorPicker->associatedObjects().isEmpty())
+            button = qobject_cast<QAbstractButton*>(UBApplication::mainWindow->actionColorPicker->associatedObjects().first());
+#else
+        if (!UBApplication::mainWindow->actionColorPicker->associatedWidgets().isEmpty())
+            button = qobject_cast<QAbstractButton*>(UBApplication::mainWindow->actionColorPicker->associatedWidgets().first());
+#endif
+
+        if (!button)
+        {
+            if (QToolBar* bar = UBApplication::mainWindow->findChild<QToolBar*>(QStringLiteral("boardToolBar")))
+                button = qobject_cast<QAbstractButton*>(bar->widgetForAction(UBApplication::mainWindow->actionColorPicker));
+        }
+
+        if (button)
+        {
+            QPoint global = button->mapToGlobal(QPoint(0, 0));
+            QPoint pos = mContainer->mapFromGlobal(global);
+            int x = pos.x() + (button->width() - mColorPickerPalette->width()) / 2;
+            int y = pos.y() - mColorPickerPalette->height() - 10;
+            mColorPickerPalette->move(x, y);
+        }
+        else
+        {
+            mColorPickerPalette->move((mContainer->width() - mColorPickerPalette->width()) / 2,
+                                     (mContainer->height() - mColorPickerPalette->height()) / 5);
+        }
+    }
+}
+
+void UBBoardPaletteManager::colorPickerPaletteClosed()
+{
+    if (UBApplication::mainWindow && UBApplication::mainWindow->actionColorPicker)
+        UBApplication::mainWindow->actionColorPicker->setChecked(false);
+}
 
 void UBBoardPaletteManager::tooglePodcastPalette(bool checked)
 {

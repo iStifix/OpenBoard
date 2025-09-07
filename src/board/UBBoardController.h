@@ -333,7 +333,6 @@ class UBBoardController : public UBDocumentContainer
         void stylusToolDoubleClicked(int tool);
         void boardViewResized(QResizeEvent* event);
         void updateBackgroundActionsState(bool isDark, UBPageBackground pageBackground);
-        void colorPaletteChanged();
         void libraryDialogClosed(int ret);
         void lastWindowClosed();
         void onDownloadModalFinished();

@@ -13,6 +13,10 @@ target_sources(${PROJECT_NAME} PRIVATE
     UBCircleFrame.h
     UBColorPicker.cpp
     UBColorPicker.h
+    UBColorSquare.cpp
+    UBColorSquare.h
+    UBColorPickerPalette.cpp
+    UBColorPickerPalette.h
     UBDockDownloadWidget.cpp
     UBDockDownloadWidget.h
     UBDockPalette.cpp

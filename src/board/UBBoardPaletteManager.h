@@ -54,6 +54,7 @@ class UBMainWindow;
 class UBApplicationController;
 class UBStartupHintsPalette;
 class UBPageNavigationWidget;
+class UBColorPickerPalette;
 
 class UBBoardPaletteManager : public QObject
 {
@@ -120,6 +121,7 @@ class UBBoardPaletteManager : public QObject
         UBActionPalette* mAddItemPalette;
         UBActionPalette* mErasePalette;
         UBActionPalette* mPagePalette;
+        UBColorPickerPalette* mColorPickerPalette;
 
         QUrl mItemUrl;
         QPixmap mPixmap;
@@ -184,6 +186,9 @@ class UBBoardPaletteManager : public QObject
         void zoomButtonReleased();
         void handButtonPressed();
         void handButtonReleased();
+
+        void toggleColorPickerPalette(bool checked);
+        void colorPickerPaletteClosed();
 
         void changeStylusPaletteOrientation(QVariant var);
 };

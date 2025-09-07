@@ -159,15 +159,27 @@ QList<QColor> UBColorListSetting::colors() const
 void UBColorListSetting::setColor(int pIndex, const QColor& color)
 {
     QStringList list = get().toStringList();
-    list.replace(pIndex, color.name(QColor::HexArgb));
-    if (mAlpha>=0)
+
+    // Ensure the internal list is large enough to hold the requested index.
+    while (list.size() <= pIndex)
+        list << QString();
+
+    if (mColors.size() <= pIndex)
+        mColors.resize(pIndex + 1);
+
+    list[pIndex] = color.name(QColor::HexArgb);
+
+    if (mAlpha >= 0)
     {
         QColor c = color;
         c.setAlphaF(mAlpha);
-        mColors.replace(pIndex, c);
+        mColors[pIndex] = c;
     }
     else
-        mColors.replace(pIndex, color);
+    {
+        mColors[pIndex] = color;
+    }
+
     set(list);
 }
 

@@ -6,6 +6,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     documents.ui
     intranetPodcastPublishingDialog.ui
     mainWindow.ui
+    colorPickerPalette.ui
     preferences.ui
     trapFlash.ui
     youTubePublishingDialog.ui

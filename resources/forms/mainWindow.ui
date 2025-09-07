@@ -294,7 +294,7 @@
    </property>
    <property name="font">
     <font>
-     <pointsize>9</pointsize>
+     <pointsize>14</pointsize>
     </font>
    </property>
    <property name="shortcut">
@@ -314,7 +314,7 @@
    </property>
    <property name="font">
     <font>
-     <pointsize>9</pointsize>
+     <pointsize>14</pointsize>
     </font>
    </property>
    <property name="shortcut">
@@ -337,7 +337,7 @@
    </property>
    <property name="font">
     <font>
-     <pointsize>9</pointsize>
+     <pointsize>14</pointsize>
     </font>
    </property>
    <property name="shortcut">
@@ -357,7 +357,7 @@
    </property>
    <property name="font">
     <font>
-     <pointsize>9</pointsize>
+     <pointsize>14</pointsize>
     </font>
    </property>
    <property name="shortcut">
@@ -674,7 +674,7 @@
    </property>
    <property name="font">
     <font>
-     <pointsize>9</pointsize>
+     <pointsize>14</pointsize>
     </font>
    </property>
    <property name="shortcut">
@@ -697,7 +697,7 @@
    </property>
    <property name="font">
     <font>
-     <pointsize>9</pointsize>
+     <pointsize>14</pointsize>
     </font>
    </property>
   </action>
@@ -744,7 +744,7 @@
    </property>
    <property name="font">
     <font>
-     <pointsize>9</pointsize>
+     <pointsize>14</pointsize>
     </font>
    </property>
    <property name="menuRole">
@@ -770,7 +770,7 @@
    </property>
    <property name="font">
     <font>
-     <pointsize>9</pointsize>
+     <pointsize>14</pointsize>
     </font>
    </property>
    <property name="shortcut">
@@ -1676,7 +1676,7 @@
    </property>
    <property name="font">
     <font>
-     <pointsize>9</pointsize>
+     <pointsize>14</pointsize>
     </font>
    </property>
   </action>
