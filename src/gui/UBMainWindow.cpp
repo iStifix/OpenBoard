@@ -204,10 +204,13 @@ void UBMainWindow::layoutBoardToolbar()
     if (mIs4k && boardToolBar)
     {
         boardToolBar->adjustSize();
-        const QSize size = boardToolBar->sizeHint();
-        const int x = (width() - size.width()) / 2;
-        const int y = height() - size.height() - 20;
-        boardToolBar->setGeometry(x, y, size.width(), size.height());
+        const QSize hint = boardToolBar->sizeHint();
+        // In 4k mode, let the toolbar expand horizontally to avoid overflow hiding trailing actions
+        const int toolbarWidth = qMax(hint.width(), width() - 40);
+        const int toolbarHeight = hint.height();
+        const int x = (width() - toolbarWidth) / 2;
+        const int y = height() - toolbarHeight - 20;
+        boardToolBar->setGeometry(x, y, toolbarWidth, toolbarHeight);
         boardToolBar->raise();
     }
     if (UBApplication::boardController && UBApplication::boardController->paletteManager())
