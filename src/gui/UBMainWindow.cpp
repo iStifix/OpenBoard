@@ -204,9 +204,9 @@ void UBMainWindow::layoutBoardToolbar()
     if (mIs4k && boardToolBar)
     {
         boardToolBar->adjustSize();
-        const QSize hint = boardToolBar->sizeHint();
-        // In 4k mode, let the toolbar expand horizontally to avoid overflow hiding trailing actions
-        const int toolbarWidth = qMax(hint.width(), width() - 40);
+        // Fit to content to keep compact, but ensure no clipping of trailing actions
+        QSize hint = boardToolBar->sizeHint();
+        const int toolbarWidth = hint.width() + 10; // small slack
         const int toolbarHeight = hint.height();
         const int x = (width() - toolbarWidth) / 2;
         const int y = height() - toolbarHeight - 20;
