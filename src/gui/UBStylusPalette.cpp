@@ -131,7 +131,16 @@ void UBStylusPalette::initPosition()
     }
     else {
         int posX = (parentWidth / 2) - (width() / 2);
+        // Default (fallback): near bottom margin
         int posY = parentHeight - border() - height();
+        // If the main toolbar exists and is laid out, prefer positioning just above it
+        if (UBApplication::mainWindow && UBApplication::mainWindow->boardToolBar) {
+            const int tbTop = UBApplication::mainWindow->boardToolBar->geometry().top();
+            const int candidate = tbTop - height() - 10; // 10px gap above toolbar
+            if (candidate >= UBSettings::boardMargin) {
+                posY = candidate;
+            }
+        }
         pos.setX(posX);
         pos.setY(posY);
     }

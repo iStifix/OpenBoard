@@ -28,6 +28,7 @@
 
 
 #include <QtGui>
+#include <QSysInfo>
 
 #include "frameworks/UBPlatformUtils.h"
 #include "frameworks/UBFileSystemUtils.h"
@@ -105,11 +106,45 @@ int main(int argc, char *argv[])
 
     qInstallMessageHandler(ub_message_output);
 
-    // Disable the Chromium sandbox when no explicit flags are provided so that
-    // QtWebEngine can initialize the GPU process on configurations where the
-    // sandbox is not available (e.g. running as root or on some ARM builds).
-    if (!qEnvironmentVariableIsSet("QTWEBENGINE_CHROMIUM_FLAGS"))
-        qputenv("QTWEBENGINE_CHROMIUM_FLAGS", "--no-sandbox");
+    // Helper to append a Chromium flag once to QTWEBENGINE_CHROMIUM_FLAGS
+    auto appendChromiumFlag = [](const QByteArray &flag) {
+        QByteArray current = qgetenv("QTWEBENGINE_CHROMIUM_FLAGS");
+        if (!current.contains(flag)) {
+            if (!current.isEmpty())
+                current.append(' ');
+            current.append(flag);
+            qputenv("QTWEBENGINE_CHROMIUM_FLAGS", current);
+        }
+    };
+
+    // Disable the Chromium sandbox to improve compatibility on systems where it
+    // is not available (e.g., running as root or certain ARM builds).
+    appendChromiumFlag("--no-sandbox");
+
+    // Optional safety switches for problematic GPU stacks.
+    //
+    // You can force software rendering by exporting OPENBOARD_FORCE_SOFTWARE=1.
+    // On aarch64/ARM, we default to disabling GPU in QtWebEngine unless opted out
+    // with OPENBOARD_ENABLE_GPU=1.
+    const bool forceSoftware = qEnvironmentVariableIntValue("OPENBOARD_FORCE_SOFTWARE") == 1;
+    const bool enableGpuOverride = qEnvironmentVariableIntValue("OPENBOARD_ENABLE_GPU") == 1;
+    const QString arch = QSysInfo::currentCpuArchitecture();
+
+    const bool isArmArch = arch.contains("arm", Qt::CaseInsensitive) || arch.contains("aarch64", Qt::CaseInsensitive);
+
+    if (forceSoftware) {
+        // Prefer Qt's software OpenGL implementation for stability.
+        QCoreApplication::setAttribute(Qt::AA_UseSoftwareOpenGL);
+        qputenv("QT_OPENGL", "software");
+        // Also hint Chromium to avoid GPU usage in its process.
+        appendChromiumFlag("--disable-gpu");
+        appendChromiumFlag("--disable-gpu-compositing");
+    } else if (isArmArch && !enableGpuOverride) {
+        // On ARM/aarch64, some driver stacks (e.g. certain Mesa/AMDGPU combos)
+        // can crash in the GPU process. Prefer disabling GPU for WebEngine.
+        appendChromiumFlag("--disable-gpu");
+        appendChromiumFlag("--disable-gpu-compositing");
+    }
 
     // Share OpenGL contexts across threads to avoid GPU related crashes when
     // QtWebEngine creates its internal rendering contexts.
