@@ -294,11 +294,6 @@ class UBSettings : public QObject
         UBSetting* boardSimplifyPenStrokesThresholdWidthDifference;
         UBSetting* boardInterpolateMarkerStrokes;
         UBSetting* boardSimplifyMarkerStrokes;
-        UBSetting* boardLowQualityRendering; // Disable antialiasing and heavy effects
-        UBSetting* boardMinStrokePointDistance; // Minimum distance between stroke points (in px)
-        UBSetting* boardEnableAntialiasing; // Independently toggle painter antialiasing
-        UBSetting* boardMarkerConstantOpacity; // Keep marker opacity constant (slower)
-        UBSetting* boardMinMarkerPointDistance; // Marker-specific min distance between points
 
         UBSetting* boardKeyboardPaletteKeyBtnSize;
 

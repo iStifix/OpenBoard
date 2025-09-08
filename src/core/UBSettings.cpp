@@ -294,13 +294,6 @@ void UBSettings::init()
     boardInterpolateMarkerStrokes = new UBSetting(this, "Board", "InterpolateMarkerStrokes", true);
     boardSimplifyMarkerStrokes = new UBSetting(this, "Board", "SimplifyMarkerStrokes", true);
 
-    // Performance-oriented settings (opt-in)
-    boardLowQualityRendering = new UBSetting(this, "Board", "LowQualityRendering", false);
-    boardMinStrokePointDistance = new UBSetting(this, "Board", "MinStrokePointDistance", 10.0);
-    boardEnableAntialiasing = new UBSetting(this, "Board", "EnableAntialiasing", true);
-    boardMarkerConstantOpacity = new UBSetting(this, "Board", "MarkerConstantOpacity", true);
-    boardMinMarkerPointDistance = new UBSetting(this, "Board", "MinMarkerPointDistance", 16.0);
-
     boardKeyboardPaletteKeyBtnSize = new UBSetting(this, "Board", "KeyboardPaletteKeyBtnSize", "16x16");
     ValidateKeyboardPaletteKeyBtnSize();
 

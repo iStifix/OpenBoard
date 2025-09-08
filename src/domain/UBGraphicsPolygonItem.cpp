@@ -31,7 +31,6 @@
 
 #include "frameworks/UBGeometryUtils.h"
 #include "UBGraphicsScene.h"
-#include "core/UBSettings.h"
 #include "domain/UBGraphicsPolygonItem.h"
 #include "domain/UBGraphicsStroke.h"
 
@@ -91,8 +90,6 @@ void UBGraphicsPolygonItem::initialize()
 {
     setData(UBGraphicsItemData::itemLayerType, QVariant(itemLayerType::DrawingItem)); //Necessary to set if we want z value to be assigned correctly
     setUuid(QUuid::createUuid());
-    // Ensure boolean ops (eraser/subtractions) behave consistently
-    setFillRule(Qt::WindingFill);
 }
 
 void UBGraphicsPolygonItem::setUuid(const QUuid &pUuid)
@@ -190,15 +187,7 @@ void UBGraphicsPolygonItem::paint ( QPainter * painter, const QStyleOptionGraphi
     if (mHasAlpha)
         painter->setCompositionMode(QPainter::CompositionMode_SourceOver);
 
-    // Toggle antialiasing independently from other quality settings
-    bool aaEnabled = true;
-    if (UBSettings::settings()) {
-        auto s = UBSettings::settings();
-        if (s && s->boardEnableAntialiasing)
-            aaEnabled = s->boardEnableAntialiasing->get().toBool();
-    }
-
-    painter->setRenderHint(QPainter::Antialiasing, aaEnabled);
+    painter->setRenderHints(QPainter::Antialiasing);
 
     QGraphicsPolygonItem::paint(painter, option, widget);
 }
