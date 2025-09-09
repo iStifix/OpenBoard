@@ -395,6 +395,13 @@ UBGraphicsScene::UBGraphicsScene(std::shared_ptr<UBDocumentProxy> document, bool
             if (ok && envTs > 0) ts = envTs;
         }
         mStrokeFlatteningLayer = new UBStrokeFlatteningLayer(this, ts, this);
+        // Ensure tiles reflect undo/redo changes
+        if (UBApplication::undoStack) {
+            connect(UBApplication::undoStack.data(), &QUndoStack::indexChanged, this, [this](int){
+                if (mStrokeFlatteningLayer && mStrokeFlatteningLayer->isEnabled())
+                    mStrokeFlatteningLayer->rebuildFromScene();
+            });
+        }
     }
     // Eraser behavior (raster-first for responsiveness; commit vector ops on release)
     mEraseRasterFirst = UBSettings::settings()->value("Perf/Strokes/EraseRasterFirst", true).toBool();
@@ -872,6 +879,10 @@ bool UBGraphicsScene::inputDeviceReleaseImpl(int tool, Qt::KeyboardModifiers mod
             mAddedItems.clear();
             mAddedItems << pStrokes;
             addItem(pStrokes);
+            // Optionally flatten strokes into cached tiles for GPU compositing
+            if (mStrokeFlatteningLayer && mStrokeFlatteningLayer->isEnabled()) {
+                mStrokeFlatteningLayer->flattenGroup(pStrokes);
+            }
 
             if (mCurrentStroke->polygons().empty()){
                 delete mCurrentStroke;
