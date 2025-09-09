@@ -28,6 +28,7 @@
 
 #include <QtGui>
 #include "UBMagnifer.h"
+#include "frameworks/UBPlatformUtils.h"
 
 #include "core/UBApplication.h"
 #include "board/UBBoardController.h"
@@ -38,13 +39,22 @@
 
 
 UBMagnifier::UBMagnifier(QWidget *parent, bool isInteractive)
-    : QWidget(parent, parent ? Qt::Widget : Qt::Tool | (Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::X11BypassWindowManagerHint))
+    : QWidget(parent)
     , mShouldMoveWidget(false)
     , mShouldResizeWidget(false)
     , borderPen(Qt::darkGray)
     , gView(0)
     , mView(0)
 {
+    // Configure window flags based on session type
+    {
+        Qt::WindowFlags flags = parent ? Qt::Widget : Qt::Tool | (Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+        if (UBPlatformUtils::sessionType() != UBPlatformUtils::WAYLAND) {
+            flags |= Qt::X11BypassWindowManagerHint;
+        }
+        setWindowFlags(flags);
+    }
+
     isCusrsorAlreadyStored = false;
     setMouseTracking(true);
 

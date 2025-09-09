@@ -55,6 +55,9 @@
 #include <QWebEnginePage>
 #include <QWebEngineRegisterProtocolHandlerRequest>
 #include <QtWebEngineWidgetsVersion>
+#if (QTWEBENGINEWIDGETS_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#include <QWebEnginePermission>
+#endif
 
 class WebPage : public QWebEnginePage
 {
@@ -74,6 +77,9 @@ protected:
 private slots:
     void handleAuthenticationRequired(const QUrl &requestUrl, QAuthenticator *auth);
     void handleFeaturePermissionRequested(const QUrl &securityOrigin, Feature feature);
+#if (QTWEBENGINEWIDGETS_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+    void handlePermissionRequested(QWebEnginePermission permission);
+#endif
     void handleProxyAuthenticationRequired(const QUrl &requestUrl, QAuthenticator *auth, const QString &proxyHost);
     void handleRegisterProtocolHandlerRequested(QWebEngineRegisterProtocolHandlerRequest request);
 #if !defined(QT_NO_SSL) || QTWEBENGINEWIDGETS_VERSION >= QT_VERSION_CHECK(5, 12, 0)

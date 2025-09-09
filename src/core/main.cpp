@@ -29,6 +29,10 @@
 
 #include <QtGui>
 #include <QSysInfo>
+#include <QSettings>
+#include <QDir>
+#include <QSurfaceFormat>
+#include <QPixmapCache>
 
 #include "frameworks/UBPlatformUtils.h"
 #include "frameworks/UBFileSystemUtils.h"
@@ -106,6 +110,38 @@ int main(int argc, char *argv[])
 
     qInstallMessageHandler(ub_message_output);
 
+    // HighDPI and GL defaults before app construction
+#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+    QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+    QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
+#endif
+
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 14, 0))
+    // Keep crisp rendering under fractional scaling on Wayland/KDE
+    QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
+#endif
+
+#if QT_VERSION >= QT_VERSION_CHECK(5, 4, 0)
+    {
+        const QByteArray glDefaults = qgetenv("OPENBOARD_GL_DEFAULTS");
+        const bool setGlDefaults = !(glDefaults == "0" || glDefaults.compare("false", Qt::CaseInsensitive) == 0);
+        if (setGlDefaults) {
+            QSurfaceFormat fmt = QSurfaceFormat::defaultFormat();
+            fmt.setRenderableType(QSurfaceFormat::OpenGL);
+            fmt.setVersion(3, 3);
+            fmt.setProfile(QSurfaceFormat::CoreProfile);
+            bool ok = false;
+            int swapInt = qEnvironmentVariableIntValue("OPENBOARD_GL_SWAP_INTERVAL", &ok);
+            if (ok) fmt.setSwapInterval(swapInt);
+            QSurfaceFormat::setDefaultFormat(fmt);
+        }
+    }
+#endif
+
+    // Mesa driver hint: enable GL threading to reduce CPU overhead (safe on AMD/Radeon/Mesa)
+    if (!qEnvironmentVariableIsSet("MESA_GLTHREAD"))
+        qputenv("MESA_GLTHREAD", QByteArray("true"));
+
     // Helper to append a Chromium flag once to QTWEBENGINE_CHROMIUM_FLAGS
     auto appendChromiumFlag = [](const QByteArray &flag) {
         QByteArray current = qgetenv("QTWEBENGINE_CHROMIUM_FLAGS");
@@ -120,14 +156,24 @@ int main(int argc, char *argv[])
     // Disable the Chromium sandbox to improve compatibility on systems where it
     // is not available (e.g., running as root or certain ARM builds).
     appendChromiumFlag("--no-sandbox");
+    appendChromiumFlag("--ozone-platform-hint=auto");
+    // Keep ozone auto-detection; no hard preference set here
 
     // Optional safety switches for problematic GPU stacks.
-    //
-    // You can force software rendering by exporting OPENBOARD_FORCE_SOFTWARE=1.
-    // On aarch64/ARM, we default to disabling GPU in QtWebEngine unless opted out
-    // with OPENBOARD_ENABLE_GPU=1.
-    const bool forceSoftware = qEnvironmentVariableIntValue("OPENBOARD_FORCE_SOFTWARE") == 1;
-    const bool enableGpuOverride = qEnvironmentVariableIntValue("OPENBOARD_ENABLE_GPU") == 1;
+    // You can use config (Perf/WebEngine) or env vars.
+    bool forceSoftware = qEnvironmentVariableIntValue("OPENBOARD_FORCE_SOFTWARE") == 1;
+    bool enableGpuOverride = qEnvironmentVariableIntValue("OPENBOARD_ENABLE_GPU") == 1;
+#ifdef Q_OS_LINUX
+    // Try to read user config before app construction
+    {
+        const QString userCfgPath = QDir::homePath() + "/.local/share/OpenBoard/OpenBoardUser.config";
+        QSettings userCfg(userCfgPath, QSettings::IniFormat);
+        QVariant vForce = userCfg.value("Perf/WebEngine/ForceSoftware", QVariant());
+        if (vForce.isValid()) forceSoftware = vForce.toBool();
+        QVariant vEnable = userCfg.value("Perf/WebEngine/EnableGPU", QVariant());
+        if (vEnable.isValid()) enableGpuOverride = vEnable.toBool();
+    }
+#endif
     const QString arch = QSysInfo::currentCpuArchitecture();
 
     const bool isArmArch = arch.contains("arm", Qt::CaseInsensitive) || arch.contains("aarch64", Qt::CaseInsensitive);
@@ -178,6 +224,20 @@ int main(int argc, char *argv[])
     }
 
     UBApplication app("OpenBoard", argc, argv);
+
+    // Increase pixmap cache to reduce re-rasterization on large boards
+    {
+        QVariant cfg = UBSettings::settings()->value("Perf/PixmapCacheMB", QVariant());
+        int cacheMb = 256;
+        if (cfg.isValid()) {
+            cacheMb = cfg.toInt();
+        } else {
+            bool ok = false;
+            int envMb = qEnvironmentVariableIntValue("OPENBOARD_PIXMAP_CACHE_MB", &ok);
+            if (ok && envMb > 0) cacheMb = envMb;
+        }
+        QPixmapCache::setCacheLimit(cacheMb * 1024);
+    }
 
     QStringList args = app.arguments();
 

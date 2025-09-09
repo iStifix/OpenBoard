@@ -90,6 +90,18 @@ void UBGraphicsPolygonItem::initialize()
 {
     setData(UBGraphicsItemData::itemLayerType, QVariant(itemLayerType::DrawingItem)); //Necessary to set if we want z value to be assigned correctly
     setUuid(QUuid::createUuid());
+
+    // Enable device-coordinate caching for strokes to reduce CPU overdraw.
+    // Can be disabled via OPENBOARD_STROKE_CACHE=0|false
+    QVariant cfg = UBSettings::settings()->value("Perf/Strokes/CacheEnabled", QVariant());
+    bool enableCache;
+    if (cfg.isValid()) enableCache = cfg.toBool();
+    else {
+        const QByteArray cacheEnv = qgetenv("OPENBOARD_STROKE_CACHE");
+        enableCache = !(cacheEnv == "0" || cacheEnv.compare("false", Qt::CaseInsensitive) == 0);
+    }
+    if (enableCache)
+        setCacheMode(QGraphicsItem::DeviceCoordinateCache);
 }
 
 void UBGraphicsPolygonItem::setUuid(const QUuid &pUuid)
@@ -187,7 +199,15 @@ void UBGraphicsPolygonItem::paint ( QPainter * painter, const QStyleOptionGraphi
     if (mHasAlpha)
         painter->setCompositionMode(QPainter::CompositionMode_SourceOver);
 
-    painter->setRenderHints(QPainter::Antialiasing);
+    // Allow disabling AA for strokes via env when many items hurt performance
+    static const bool aaEnabled = [](){
+        QVariant cfg = UBSettings::settings()->value("Perf/Strokes/Antialiasing", QVariant());
+        if (cfg.isValid()) return cfg.toBool();
+        const QByteArray aaEnv = qgetenv("OPENBOARD_STROKE_AA");
+        return !(aaEnv == "0" || aaEnv.compare("false", Qt::CaseInsensitive) == 0);
+    }();
+    if (aaEnabled)
+        painter->setRenderHints(QPainter::Antialiasing);
 
     QGraphicsPolygonItem::paint(painter, option, widget);
 }
@@ -196,4 +216,14 @@ std::shared_ptr<UBGraphicsScene> UBGraphicsPolygonItem::scene()
 {
     auto scenePtr = dynamic_cast<UBGraphicsScene*>(QGraphicsPolygonItem::scene());
     return scenePtr ? scenePtr->shared_from_this() : nullptr;
+}
+
+QPainterPath UBGraphicsPolygonItem::opaqueArea() const
+{
+    // Provide opaque area only for fully opaque strokes to skip blending
+    if (mHasAlpha)
+        return QPainterPath();
+    QPainterPath p;
+    p.addPolygon(polygon());
+    return p;
 }

@@ -2,7 +2,7 @@
 Encoding=UTF-8
 Name=OpenBoard
 Comment=OpenBoard, an interactive white board application
-Exec=openboard %f
+Exec=env MESA_GLTHREAD=true QT_SCALE_FACTOR_ROUNDING_POLICY=PassThrough openboard %f
 Icon=ch.openboard.OpenBoard
 StartupNotify=true
 Terminal=false

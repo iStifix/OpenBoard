@@ -35,6 +35,8 @@ target_sources(${PROJECT_NAME} PRIVATE
     UBGraphicsSvgItem.h
     UBGraphicsTextItem.cpp
     UBGraphicsTextItem.h
+    UBStrokeFlatteningLayer.cpp
+    UBStrokeFlatteningLayer.h
     UBGraphicsTextItemDelegate.cpp
     UBGraphicsTextItemDelegate.h
     UBGraphicsTextItemUndoCommand.cpp

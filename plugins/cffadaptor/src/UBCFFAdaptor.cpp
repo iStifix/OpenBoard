@@ -451,11 +451,24 @@ bool UBCFFAdaptor::UBToCFFConverter::parseMetadata()
         errorStr = "can't open" + QFileInfo(sourcePath + "/" + fMetadata).absoluteFilePath();
         qDebug() << errorStr;
         return false;
-
-    } else if (!mDataModel->setContent(metaDataFile.readAll(), true, &errorStr, &errorLine, &errorColumn)) {
-        qWarning() << "Error:Parseerroratline" << errorLine << ","
-                   << "column" << errorColumn << ":" << errorStr;
-        return false;
+    } else {
+        QByteArray xmlData = metaDataFile.readAll();
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
+        auto result = mDataModel->setContent(xmlData, QDomDocument::ParseOption::UseNamespaceProcessing);
+        if (!result) {
+            errorStr = result.errorMessage;
+            errorLine = static_cast<int>(result.errorLine);
+            errorColumn = static_cast<int>(result.errorColumn);
+            qWarning() << "Error:Parseerroratline" << errorLine << "," << "column" << errorColumn << ":" << errorStr;
+            return false;
+        }
+#else
+        if (!mDataModel->setContent(xmlData, true, &errorStr, &errorLine, &errorColumn)) {
+            qWarning() << "Error:Parseerroratline" << errorLine << ","
+                       << "column" << errorColumn << ":" << errorStr;
+            return false;
+        }
+#endif
     }
 
     QDomElement nextInElement = mDataModel->documentElement();
@@ -568,11 +581,26 @@ QDomElement UBCFFAdaptor::UBToCFFConverter::parsePage(const QString &pageFileNam
     if (!pageFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
         qDebug() << "can't open file" << pageFileName << "for reading";
         return QDomElement();
-    } else if (!mDataModel->setContent(pageFile.readAll(), true, &errorStr, &errorLine, &errorColumn)) {
-        qWarning() << "Error:Parseerroratline" << errorLine << ","
-                   << "column" << errorColumn << ":" << errorStr;
-        pageFile.close();
-        return QDomElement();
+    } else {
+        QByteArray xmlData = pageFile.readAll();
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
+        auto result = mDataModel->setContent(xmlData, QDomDocument::ParseOption::UseNamespaceProcessing);
+        if (!result) {
+            errorStr = result.errorMessage;
+            errorLine = static_cast<int>(result.errorLine);
+            errorColumn = static_cast<int>(result.errorColumn);
+            qWarning() << "Error:Parseerroratline" << errorLine << "," << "column" << errorColumn << ":" << errorStr;
+            pageFile.close();
+            return QDomElement();
+        }
+#else
+        if (!mDataModel->setContent(xmlData, true, &errorStr, &errorLine, &errorColumn)) {
+            qWarning() << "Error:Parseerroratline" << errorLine << ","
+                       << "column" << errorColumn << ":" << errorStr;
+            pageFile.close();
+            return QDomElement();
+        }
+#endif
     }
 
     QDomElement page;

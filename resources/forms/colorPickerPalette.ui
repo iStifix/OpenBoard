@@ -14,8 +14,8 @@
    <string>Палитра цветов</string>
   </property>
   <property name="styleSheet">
-   <string notr="true">QWidget#ColorPickerPalette{background:rgba(30,30,30,245); border-radius:12px;}
-QLabel{color:white; font-weight:600; background:rgba(0,0,0,110); border-radius:6px; padding:4px 8px;}
+   <string notr="true">QWidget#ColorPickerPalette{background:rgba(30,30,30,255); border-radius:12px;}
+QLabel{color:white; font-weight:600; background:rgba(0,0,0,180); border-radius:6px; padding:4px 8px;}
 QSlider{color:white;}
 QPushButton{border-radius:12px;}
 </string>

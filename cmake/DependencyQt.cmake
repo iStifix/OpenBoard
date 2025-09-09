@@ -21,14 +21,17 @@ endif()
 message(STATUS "Using Qt" ${QT_VERSION})
 
 if(QT_VERSION STREQUAL "5")
+    # Qt 5: GL viewport relies on Qt5::OpenGL
+    list(APPEND QT_COMPONENTS OpenGL)
     find_package(Qt5 5.12 REQUIRED COMPONENTS
         ${QT_COMPONENTS}
         LinguistTools
     )
 elseif(QT_VERSION STREQUAL "6")
+    # Qt 6: QOpenGLWidget requires OpenGL and OpenGLWidgets
+    list(APPEND QT_COMPONENTS OpenGL OpenGLWidgets SvgWidgets)
     find_package(Qt6 6.2 REQUIRED COMPONENTS
         ${QT_COMPONENTS}
-        SvgWidgets
         LinguistTools
     )
 

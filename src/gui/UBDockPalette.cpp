@@ -50,7 +50,7 @@
  * \brief The constructor
  */
 UBDockPalette::UBDockPalette(eUBDockPaletteType paletteType, QWidget *parent, const char *name)
-:QWidget(parent, Qt::FramelessWindowHint | Qt::X11BypassWindowManagerHint)
+:QWidget(parent)
 , mCurrentMode(eUBDockPaletteWidget_BOARD)
 , mOrientation(eUBDockOrientation_Left)
 , mPreferredWidth(100)
@@ -66,6 +66,15 @@ UBDockPalette::UBDockPalette(eUBDockPaletteType paletteType, QWidget *parent, co
 , mPaletteType(paletteType)
 , mTabPalette(new UBTabDockPalette(this, parent))
 {
+    // Configure window flags based on session type
+    {
+        Qt::WindowFlags flags = Qt::FramelessWindowHint;
+        if (UBPlatformUtils::sessionType() != UBPlatformUtils::WAYLAND) {
+            flags |= Qt::X11BypassWindowManagerHint;
+        }
+        setWindowFlags(flags);
+    }
+
     setObjectName(name);
 
     mpLayout = new QVBoxLayout();

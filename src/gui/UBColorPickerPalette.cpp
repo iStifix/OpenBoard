@@ -3,12 +3,14 @@
 #include "board/UBDrawingController.h"
 #include "board/UBBoardController.h"
 #include "core/UBApplication.h"
+#include "gui/UBMainWindow.h"
 #include "core/UBSettings.h"
 #include "core/memcheck.h"
 
 #include <QColor>
 #include <QShowEvent>
 #include <QMouseEvent>
+#include <QTouchEvent>
 #include <QSignalBlocker>
 #include <QPainter>
 #include <QPainterPath>
@@ -24,6 +26,8 @@ UBColorPickerPalette::UBColorPickerPalette(QWidget* parent)
     mUi.setupUi(this);
     // Make palette non-draggable
     setGrip(false);
+    // Touch support: accept touch on palette; rely on synthesized mouse for colorSquare
+    setAttribute(Qt::WA_AcceptTouchEvents, true);
 
     mPresetButtons << mUi.colorButton0 << mUi.colorButton1 << mUi.colorButton2
                    << mUi.colorButton3 << mUi.colorButton4;
@@ -33,11 +37,13 @@ UBColorPickerPalette::UBColorPickerPalette(QWidget* parent)
         QPushButton* button = mPresetButtons.at(i);
         connect(button, &QPushButton::clicked, this, [this, i]() {
             applyColorIndex(i);
+            updateActiveHighlight();
         });
     }
 
     connect(mUi.customButton, &QPushButton::clicked, this, [this]() {
         applyColorIndex(5);
+        updateActiveHighlight();
     });
 
     mUi.widthSlider->setRange(1, 90);
@@ -60,6 +66,8 @@ UBColorPickerPalette::UBColorPickerPalette(QWidget* parent)
 
     connect(UBDrawingController::drawingController(), &UBDrawingController::colorPaletteChanged,
             this, &UBColorPickerPalette::refreshPalette);
+    connect(UBDrawingController::drawingController(), &UBDrawingController::colorIndexChanged,
+            this, [this](int idx){ Q_UNUSED(idx); updateActiveHighlight(); });
 
     if (UBApplication::boardController)
         connect(UBApplication::boardController, &UBBoardController::penColorChanged,
@@ -67,6 +75,7 @@ UBColorPickerPalette::UBColorPickerPalette(QWidget* parent)
 
     refreshPalette();
     updateStrokePreview();
+    updateActiveHighlight();
 
     // Preview bubble initialization (top-level window to allow going outside palette bounds)
     mPreview = new PreviewBubble(nullptr);
@@ -128,7 +137,7 @@ void UBColorPickerPalette::updateCustomColor()
         return;
     QColor c;
     c.setHsv(mHue, mSaturation, mUi.brightnessSlider->value());
-    mUi.customButton->setStyleSheet(QString("background:%1;").arg(c.name()));
+    mUi.customButton->setStyleSheet(buttonStyleFor(c, true));
 
     mUpdatingPalette = true;
     UBDrawingController::drawingController()->setPenColor(true, c, 5);
@@ -137,6 +146,7 @@ void UBColorPickerPalette::updateCustomColor()
     UBDrawingController::drawingController()->setMarkerColor(false, c, 5);
     applyColorIndex(5);
     mUpdatingPalette = false;
+    updateActiveHighlight();
 }
 
 void UBColorPickerPalette::applyColorIndex(int index)
@@ -189,6 +199,7 @@ void UBColorPickerPalette::showEvent(QShowEvent* event)
     refreshPalette();
     mUi.widthSlider->setValue(static_cast<int>(UBDrawingController::drawingController()->currentToolWidth()));
     if (mPreview) mPreview->hide();
+    updateActiveHighlight();
 }
 
 void UBColorPickerPalette::refreshPalette()
@@ -208,7 +219,7 @@ void UBColorPickerPalette::refreshPalette()
     for (int i = 0; i < mPresetButtons.size() && i < lightColors.size() && i < darkColors.size(); ++i)
     {
         QColor c = dark ? darkColors.at(i) : lightColors.at(i);
-        mPresetButtons.at(i)->setStyleSheet(QString("background:%1;").arg(c.name()));
+        mPresetButtons.at(i)->setStyleSheet(buttonStyleFor(c, false));
         UBDrawingController::drawingController()->setMarkerColor(true, darkColors.at(i), i);
         UBDrawingController::drawingController()->setMarkerColor(false, lightColors.at(i), i);
     }
@@ -222,7 +233,7 @@ void UBColorPickerPalette::refreshPalette()
             QSignalBlocker blocker(mUi.brightnessSlider);
             mUi.brightnessSlider->setValue(c.value());
         }
-        mUi.customButton->setStyleSheet(QString("background:%1;").arg(c.name()));
+        mUi.customButton->setStyleSheet(buttonStyleFor(c, false));
         UBDrawingController::drawingController()->setMarkerColor(true, darkColors.at(5), 5);
         UBDrawingController::drawingController()->setMarkerColor(false, lightColors.at(5), 5);
     }
@@ -232,11 +243,12 @@ void UBColorPickerPalette::refreshPalette()
             QSignalBlocker blocker(mUi.brightnessSlider);
             mUi.brightnessSlider->setValue(255);
         }
-        mUi.customButton->setStyleSheet(QString("background:%1;").arg(Qt::white));
+        mUi.customButton->setStyleSheet(buttonStyleFor(Qt::white, false));
     }
 
     mUpdatingPalette = false;
     updateStrokePreview();
+    updateActiveHighlight();
 
 }
 
@@ -248,6 +260,48 @@ void UBColorPickerPalette::updateStrokePreview()
     int penW = mUi.widthSlider->value();
     mUi.strokePreview->setPixmap(QPixmap());
     mUi.strokePreview->setText(QString::number(penW));
+}
+
+QString UBColorPickerPalette::buttonStyleFor(const QColor& c, bool active) const
+{
+    QString base = QString("background:%1; border-radius:12px;").arg(c.name());
+    if (active) {
+        QColor rgb = c.toRgb();
+        int luma = (299*rgb.red() + 587*rgb.green() + 114*rgb.blue()) / 1000; // perceived brightness
+        QString border = (luma > 180) ? "#000000" : "#FFFFFF";
+        return base + QString(" border:4px solid %1;").arg(border);
+    } else {
+        return base + " border:2px solid rgba(255,255,255,64);";
+    }
+}
+
+void UBColorPickerPalette::updateActiveHighlight()
+{
+    if (mUpdatingPalette)
+        return;
+
+    int idx = UBDrawingController::drawingController()->currentToolColorIndex();
+    if (idx < 0) idx = mActiveIndex; // keep previous if tool is not drawing
+    mActiveIndex = idx;
+
+    bool dark = UBSettings::settings()->isDarkBackground();
+    QList<QColor> lightColors = UBSettings::settings()->penColors(false);
+    QList<QColor> darkColors = UBSettings::settings()->penColors(true);
+
+    for (int i = 0; i < mPresetButtons.size() && i < lightColors.size() && i < darkColors.size(); ++i)
+    {
+        QColor c = dark ? darkColors.at(i) : lightColors.at(i);
+        bool active = (i == mActiveIndex);
+        mPresetButtons.at(i)->setStyleSheet(buttonStyleFor(c, active));
+    }
+
+    // Custom button highlight (index 5)
+    if (lightColors.size() > 5 && darkColors.size() > 5)
+    {
+        QColor c = dark ? darkColors.at(5) : lightColors.at(5);
+        bool active = (mActiveIndex == 5);
+        mUi.customButton->setStyleSheet(buttonStyleFor(c, active));
+    }
 }
 
 // PreviewBubble implementation
@@ -305,16 +359,53 @@ bool UBColorPickerPalette::eventFilter(QObject* obj, QEvent* event)
             auto* me = static_cast<QMouseEvent*>(event);
             QPoint gp = me->globalPosition().toPoint();
             QPoint lp = mapFromGlobal(gp);
+            // If click is outside palette, check if it's on the Color Picker button.
             if (!rect().contains(lp))
-                hide();
+            {
+                bool onColorButton = false;
+                if (UBApplication::mainWindow && UBApplication::mainWindow->actionColorPicker)
+                {
+                    const auto objs = UBApplication::mainWindow->actionColorPicker->associatedObjects();
+                    for (QObject* obj : objs)
+                    {
+                        if (auto ab = qobject_cast<QAbstractButton*>(obj))
+                        {
+                            QPoint btnTopLeft = ab->mapToGlobal(QPoint(0, 0));
+                            QRect btnRect(btnTopLeft, ab->size());
+                            if (btnRect.contains(gp)) { onColorButton = true; break; }
+                        }
+                    }
+                }
+                if (!onColorButton)
+                    hide();
+            }
             break;
         }
 #else
         {
             auto* me = static_cast<QMouseEvent*>(event);
-            QPoint lp = mapFromGlobal(me->globalPos());
+            QPoint gp = me->globalPos();
+            QPoint lp = mapFromGlobal(gp);
+            // If click is outside palette, check if it's on the Color Picker button.
             if (!rect().contains(lp))
-                hide();
+            {
+                bool onColorButton = false;
+                if (UBApplication::mainWindow && UBApplication::mainWindow->actionColorPicker)
+                {
+                    const auto wgs = UBApplication::mainWindow->actionColorPicker->associatedWidgets();
+                    for (QWidget* w : wgs)
+                    {
+                        if (auto ab = qobject_cast<QAbstractButton*>(w))
+                        {
+                            QPoint btnTopLeft = ab->mapToGlobal(QPoint(0, 0));
+                            QRect btnRect(btnTopLeft, ab->size());
+                            if (btnRect.contains(gp)) { onColorButton = true; break; }
+                        }
+                    }
+                }
+                if (!onColorButton)
+                    hide();
+            }
             break;
         }
 #endif
@@ -324,8 +415,81 @@ bool UBColorPickerPalette::eventFilter(QObject* obj, QEvent* event)
             updateStrokePreview();
             break;
         case QEvent::TouchBegin:
-            hide();
+        case QEvent::TouchUpdate:
+        case QEvent::TouchEnd:
+        {
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+            auto* te = static_cast<QTouchEvent*>(event);
+            bool anyInside = false;
+            for (const auto& p : te->points())
+            {
+                QPoint gp = p.globalPosition().toPoint();
+                QPoint lp = mapFromGlobal(gp);
+                if (rect().contains(lp)) { anyInside = true; break; }
+            }
+            if (!anyInside)
+            {
+                // Do not auto-close if the touch is on the Color Picker button itself.
+                bool onColorButton = false;
+                if (UBApplication::mainWindow && UBApplication::mainWindow->actionColorPicker)
+                {
+                    const auto objs = UBApplication::mainWindow->actionColorPicker->associatedObjects();
+                    for (QObject* obj : objs)
+                    {
+                        if (auto ab = qobject_cast<QAbstractButton*>(obj))
+                        {
+                            QPoint btnTopLeft = ab->mapToGlobal(QPoint(0, 0));
+                            QRect btnRect(btnTopLeft, ab->size());
+                            for (const auto& p : te->points())
+                            {
+                                QPoint gp2 = p.globalPosition().toPoint();
+                                if (btnRect.contains(gp2)) { onColorButton = true; break; }
+                            }
+                            if (onColorButton) break;
+                        }
+                    }
+                }
+                if (!onColorButton)
+                    hide();
+            }
+#else
+            auto* te = static_cast<QTouchEvent*>(event);
+            bool anyInside = false;
+            const auto points = te->touchPoints();
+            for (const auto& p : points)
+            {
+                QPoint gp = p.screenPos().toPoint();
+                QPoint lp = mapFromGlobal(gp);
+                if (rect().contains(lp)) { anyInside = true; break; }
+            }
+            if (!anyInside)
+            {
+                // Do not auto-close if the touch is on the Color Picker button itself.
+                bool onColorButton = false;
+                if (UBApplication::mainWindow && UBApplication::mainWindow->actionColorPicker)
+                {
+                    const auto wgs = UBApplication::mainWindow->actionColorPicker->associatedWidgets();
+                    for (QWidget* w : wgs)
+                    {
+                        if (auto ab = qobject_cast<QAbstractButton*>(w))
+                        {
+                            QPoint btnTopLeft = ab->mapToGlobal(QPoint(0, 0));
+                            QRect btnRect(btnTopLeft, ab->size());
+                            for (const auto& p : points)
+                            {
+                                QPoint gp2 = p.screenPos().toPoint();
+                                if (btnRect.contains(gp2)) { onColorButton = true; break; }
+                            }
+                            if (onColorButton) break;
+                        }
+                    }
+                }
+                if (!onColorButton)
+                    hide();
+            }
+#endif
             break;
+        }
         default:
             break;
     }

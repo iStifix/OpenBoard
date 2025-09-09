@@ -100,6 +100,10 @@ if(OPENMP_FOUND)
     string(APPEND CMAKE_CXX_FLAGS " " ${OpenMP_CXX_FLAGS})
 endif()
 
+# Optional: enable architecture and link-time optimizations
+option(OPENBOARD_ENABLE_AARCH64_TUNING "Enable CPU-specific tuning on AArch64" ON)
+option(OPENBOARD_ENABLE_IPO "Enable Link Time Optimization (IPO/LTO) for Release" ON)
+
 
 # ==========================================================================
 # Target and dependencies
@@ -149,6 +153,26 @@ add_subdirectory(resources/forms)
 target_link_libraries(${PROJECT_NAME}
     SingleApplication::SingleApplication
 )
+
+# Apply AArch64 tuning flags when building natively
+if(OPENBOARD_ENABLE_AARCH64_TUNING AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+    if (CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+        message(STATUS "Enabling AArch64 tuning flags (-march=armv8-a -mtune=cortex-a57)")
+        target_compile_options(${PROJECT_NAME} PRIVATE -march=armv8-a -mtune=cortex-a57)
+    endif()
+endif()
+
+# Enable IPO/LTO in Release if supported
+if(OPENBOARD_ENABLE_IPO)
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT ipo_supported OUTPUT ipo_msg)
+    if(ipo_supported)
+        set_property(TARGET ${PROJECT_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+        message(STATUS "IPO/LTO enabled for Release")
+    else()
+        message(STATUS "IPO/LTO not supported: ${ipo_msg}")
+    endif()
+endif()
 
 
 # ==========================================================================

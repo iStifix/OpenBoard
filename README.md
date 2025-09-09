@@ -35,3 +35,14 @@ Even with not a single bit of knowledge in C++, you can contribute to OpenBoard.
 Download and install OpenBoard, and develop your web app in it. You'll even find a web inspector to help you debug your site.
 
 You'll find documentation on how to create a Web Widget from scratch or turning your already developped web site into an OpenBoard Web Widget [here](https://github.com/OpenBoard-org/OpenBoard/wiki/Creating-Web-Widgets).
+
+## Wayland/ARM64 performance tips
+- GPU viewport: set `OPENBOARD_GL_VIEWPORT=1` (default enabled) to use OpenGL.
+- GL defaults: `OPENBOARD_GL_DEFAULTS=1` and optionally `OPENBOARD_GL_SWAP_INTERVAL=0|1`.
+- Pixmap cache: tune `OPENBOARD_PIXMAP_CACHE_MB=128..512` (default 256).
+- AArch64 tuning: `-DOPENBOARD_ENABLE_AARCH64_TUNING=ON`.
+- LTO: `-DOPENBOARD_ENABLE_IPO=ON` for smaller/faster binaries if supported.
+
+Configuration via OpenBoardUser.config
+- Copy `resources/etc/OpenBoardUser.config.sample` to `~/.local/share/OpenBoard/OpenBoardUser.config` and adjust.
+- Keys under `[Perf]` and `[Perf/WebEngine]` mirror env vars for rendering and WebEngine.

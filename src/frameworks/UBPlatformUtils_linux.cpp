@@ -37,6 +37,7 @@
 #include <unistd.h>
 
 #include "frameworks/UBDesktopPortal.h"
+#include "frameworks/UBPipewireSink.h"
 #include "frameworks/UBFileSystemUtils.h"
 #include "core/UBApplication.h"
 #include "core/UBDisplayManager.h"
@@ -539,22 +540,62 @@ void UBPlatformUtils::grabScreen(QScreen* screen, std::function<void (QPixmap)> 
 {
     if (sessionType() == WAYLAND)
     {
-        UBDesktopPortal* portal = new UBDesktopPortal;
+        // Optional faster path: capture a single frame via PipeWire stream to avoid PNG decode
+        const QByteArray grabMode = qgetenv("OPENBOARD_WAYLAND_GRAB");
+        bool cfgFast = UBSettings::settings()->value("Capture/WaylandFastGrab", false).toBool();
+        if (cfgFast || grabMode == "stream" || grabMode == "pipewire")
+        {
+            auto* portal = new UBDesktopPortal;
+            QObject::connect(portal, &UBDesktopPortal::streamStarted, portal, [portal, callback, rect](int fd, int nodeId) {
+                auto* sink = new UBPipewireSink(portal);
+                // Deliver first frame then stop (shared state to avoid dangling refs)
+                auto delivered = QSharedPointer<bool>::create(false);
+                QObject::connect(sink, &UBPipewireSink::gotImage, sink, [portal, sink, callback, rect, delivered](const QImage& image) mutable {
+                    if (*delivered) return;
+                    *delivered = true;
+                    QImage img = image;
+                    if (!rect.isNull())
+                    {
+                        // clamp rect to image bounds
+                        QRect r = rect.intersected(QRect(QPoint(0,0), img.size()));
+                        img = img.copy(r);
+                    }
+                    QPixmap px = QPixmap::fromImage(img);
+                    callback(px);
+                    portal->stopScreenCast();
+                    sink->deleteLater();
+                    portal->deleteLater();
+                });
+                QObject::connect(sink, &UBPipewireSink::streamingInterrupted, sink, [portal, sink, callback]() {
+                    callback(QPixmap());
+                    sink->deleteLater();
+                    portal->deleteLater();
+                });
+                sink->start(fd, nodeId);
+            });
+            QObject::connect(portal, &UBDesktopPortal::screenCastAborted, portal, [portal, callback]() {
+                callback(QPixmap());
+                portal->deleteLater();
+            });
+            portal->startScreenCast(true);
+            return;
+        }
 
+        // Default Wayland path: use Screenshot portal (saves to temp file)
+        UBDesktopPortal* portal = new UBDesktopPortal;
         QObject::connect(portal, &UBDesktopPortal::screenGrabbed, portal, [portal,callback](QPixmap screenshot){
             callback(screenshot);
             portal->deleteLater();
         });
-
         portal->grabScreen(screen, rect);
+        return;
     }
-    else
-    {
-        // see https://doc.qt.io/qt-6.2/qtwidgets-desktop-screenshot-example.html
-        // for using window id 0
-        QPixmap pixmap = screen->grabWindow(0, rect.x(), rect.y(), rect.width(), rect.height());
-        callback(pixmap);
-    }
+
+    // X11 or other platforms
+    // see https://doc.qt.io/qt-6.2/qtwidgets-desktop-screenshot-example.html
+    // for using window id 0
+    QPixmap pixmap = screen->grabWindow(0, rect.x(), rect.y(), rect.width(), rect.height());
+    callback(pixmap);
 }
 
 UBPlatformUtils::SessionType UBPlatformUtils::sessionType()

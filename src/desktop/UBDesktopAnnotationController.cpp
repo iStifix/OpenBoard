@@ -88,7 +88,13 @@ UBDesktopAnnotationController::UBDesktopAnnotationController(QObject *parent, UB
     #endif
 #endif //Q_OS_OSX
 
-    mTransparentDrawingView->setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Window | Qt::NoDropShadowWindowHint | Qt::X11BypassWindowManagerHint);
+    {
+        Qt::WindowFlags flags = Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Window | Qt::NoDropShadowWindowHint;
+        if (UBPlatformUtils::sessionType() != UBPlatformUtils::WAYLAND) {
+            flags |= Qt::X11BypassWindowManagerHint;
+        }
+        mTransparentDrawingView->setWindowFlags(flags);
+    }
     mTransparentDrawingView->setCacheMode(QGraphicsView::CacheNone);
     mTransparentDrawingView->resize(UBApplication::displayManager->screenSize(ScreenRole::Desktop));
 

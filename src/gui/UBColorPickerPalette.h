@@ -43,6 +43,8 @@ private:
 
     void applyColorIndex(int index);
     void updateStrokePreview();
+    void updateActiveHighlight();
+    QString buttonStyleFor(const QColor& c, bool active) const;
     class PreviewBubble : public QWidget
     {
         public:
@@ -56,4 +58,5 @@ private:
     QPointer<PreviewBubble> mPreview;
     QElapsedTimer mHoverClock;
     qint64 mLastHoverTick = 0;
+    int mActiveIndex = -1;
 };

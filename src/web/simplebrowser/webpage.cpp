@@ -64,7 +64,11 @@ WebPage::WebPage(QWebEngineProfile *profile, QObject *parent)
     : QWebEnginePage(profile, parent)
 {
     connect(this, &QWebEnginePage::authenticationRequired, this, &WebPage::handleAuthenticationRequired);
+#if (QTWEBENGINEWIDGETS_VERSION < QT_VERSION_CHECK(6, 0, 0))
     connect(this, &QWebEnginePage::featurePermissionRequested, this, &WebPage::handleFeaturePermissionRequested);
+#else
+    connect(this, &QWebEnginePage::permissionRequested, this, &WebPage::handlePermissionRequested);
+#endif
     connect(this, &QWebEnginePage::proxyAuthenticationRequired, this, &WebPage::handleProxyAuthenticationRequired);
     connect(this, &QWebEnginePage::registerProtocolHandlerRequested, this, &WebPage::handleRegisterProtocolHandlerRequested);
 #if !defined(QT_NO_SSL) || QTWEBENGINEWIDGETS_VERSION >= QT_VERSION_CHECK(5, 12, 0)
@@ -170,6 +174,8 @@ void WebPage::handleAuthenticationRequired(const QUrl &requestUrl, QAuthenticato
     }
 }
 
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED
 inline QString questionForFeature(QWebEnginePage::Feature feature)
 {
     switch (feature) {
@@ -212,6 +218,53 @@ void WebPage::handleFeaturePermissionRequested(const QUrl &securityOrigin, Featu
 
     setFeaturePermission(securityOrigin, feature, policy);
 }
+QT_WARNING_POP
+
+#if (QTWEBENGINEWIDGETS_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+void WebPage::handlePermissionRequested(QWebEnginePermission permission)
+{
+    using PT = QWebEnginePermission::PermissionType;
+    QString question;
+    switch (permission.permissionType()) {
+    case PT::Geolocation:
+        question = tr("Allow %1 to access your location information?");
+        break;
+    case PT::MediaAudioCapture:
+        question = tr("Allow %1 to access your microphone?");
+        break;
+    case PT::MediaVideoCapture:
+        question = tr("Allow %1 to access your webcam?");
+        break;
+    case PT::MediaAudioVideoCapture:
+        question = tr("Allow %1 to access your microphone and webcam?");
+        break;
+    case PT::MouseLock:
+        question = tr("Allow %1 to lock your mouse cursor?");
+        break;
+    case PT::DesktopVideoCapture:
+        question = tr("Allow %1 to capture video of your desktop?");
+        break;
+    case PT::DesktopAudioVideoCapture:
+        question = tr("Allow %1 to capture audio and video of your desktop?");
+        break;
+    case PT::Notifications:
+    case PT::ClipboardReadWrite:
+    case PT::LocalFontsAccess:
+    case PT::Unsupported:
+        question = QString();
+        break;
+    }
+
+    bool grant = true;
+    if (!question.isEmpty()) {
+        QString title = tr("Permission Request");
+        const QString host = permission.origin().host();
+        grant = (QMessageBox::question(UBApplication::mainWindow->centralWidget(), title, question.arg(host)) == QMessageBox::Yes);
+    }
+
+    if (grant) permission.grant(); else permission.deny();
+}
+#endif
 
 void WebPage::handleProxyAuthenticationRequired(const QUrl &, QAuthenticator *auth, const QString &proxyHost)
 {

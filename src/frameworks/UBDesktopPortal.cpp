@@ -26,6 +26,9 @@
 #include <QDBusReply>
 #include <QDBusUnixFileDescriptor>
 #include <QDebug>
+#include <QImageReader>
+#include <QtConcurrent>
+#include <QFutureWatcher>
 
 #include "board/UBBoardView.h"
 #include "core/UBApplication.h"
@@ -168,23 +171,36 @@ void UBDesktopPortal::stopScreenCast()
 
 void UBDesktopPortal::handleScreenshotResponse(uint code, const QMap<QString, QVariant>& results)
 {
-    QUrl uri(results["uri"].toUrl());
-    QFile file(uri.toLocalFile());
+    Q_UNUSED(code);
+    const QString path = results.value("uri").toUrl().toLocalFile();
 
-    if (!file.exists())
+    if (path.isEmpty() || !QFile::exists(path))
     {
         qDebug() << "Screenshot image file does not exist";
         emit screenGrabbed(QPixmap{});
         return;
     }
 
-    QPixmap pixmap{file.fileName()};
-    file.remove();
+    // Decode off the UI thread and crop during decode when supported
+    auto future = QtConcurrent::run([path, clip = mScreenRect]() -> QImage {
+        QImageReader reader(path);
+        reader.setAutoTransform(false);
+        if (!clip.isNull())
+            reader.setClipRect(clip);
+        QImage img = reader.read();
+        QFile::remove(path);
+        return img;
+    });
 
-    // cut requested screen
-    QPixmap screenshot = pixmap.copy(mScreenRect);
-
-    emit screenGrabbed(screenshot);
+    auto* watcher = new QFutureWatcher<QImage>(this);
+    connect(watcher, &QFutureWatcher<QImage>::finished, this, [this, watcher]() {
+        const QImage img = watcher->result();
+        watcher->deleteLater();
+        if (img.isNull()) { emit screenGrabbed(QPixmap{}); return; }
+        QPixmap px = QPixmap::fromImage(img);
+        emit screenGrabbed(px);
+    });
+    watcher->setFuture(future);
 }
 
 void UBDesktopPortal::handleCreateSessionResponse(uint response, const QVariantMap& results)

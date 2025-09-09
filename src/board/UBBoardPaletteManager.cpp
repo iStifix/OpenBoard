@@ -350,6 +350,8 @@ void UBBoardPaletteManager::setupPalettes()
     updateColorPickerAvailability(UBDrawingController::drawingController()->stylusTool());
 }
 
+
+
 void UBBoardPaletteManager::pagePaletteButtonPressed()
 {
     mPageButtonPressedTime = QTime::currentTime();
@@ -497,6 +499,7 @@ void UBBoardPaletteManager::connectPalettes()
     connect(UBApplication::mainWindow->actionPodcast, SIGNAL(triggered(bool)), this, SLOT(tooglePodcastPalette(bool)));
 
     connect(UBApplication::mainWindow->actionColorPicker, SIGNAL(toggled(bool)), this, SLOT(toggleColorPickerPalette(bool)));
+    connect(mColorPickerPalette, SIGNAL(closed()), this, SLOT(colorPickerPaletteClosed()));
     connect(mColorPickerPalette, SIGNAL(closed()), this, SLOT(colorPickerPaletteClosed()));
 
     connect(UBApplication::mainWindow->actionAddItemToCurrentPage, SIGNAL(triggered()), this, SLOT(addItemToCurrentPage()));
@@ -834,6 +837,8 @@ void UBBoardPaletteManager::toggleColorPickerPalette(bool checked)
         }
     }
 }
+
+// onColorPickerActionTriggered removed (reverted to toggled(bool) handler)
 
 void UBBoardPaletteManager::colorPickerPaletteClosed()
 {

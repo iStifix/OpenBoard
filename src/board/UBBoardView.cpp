@@ -34,6 +34,11 @@
 #include <QtXml>
 #include <QListView>
 #include <QTouchEvent>
+#include <QSurfaceFormat>
+#include <optional>
+#if QT_VERSION >= QT_VERSION_CHECK(5, 4, 0)
+#  include <QOpenGLWidget>
+#endif
 
 #include "UBDrawingController.h"
 
@@ -167,8 +172,66 @@ void UBBoardView::init ()
         }
     });
 
-    setOptimizationFlags (QGraphicsView::IndirectPainting | QGraphicsView::DontSavePainterState); // enable UBBoardView::drawItems filter
+    setOptimizationFlags (QGraphicsView::IndirectPainting
+                          | QGraphicsView::DontSavePainterState
+                          | QGraphicsView::DontAdjustForAntialiasing); // enable UBBoardView::drawItems filter
+#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+    // Qt5: optionally skip painter clipping for speed
+    setOptimizationFlag(QGraphicsView::DontClipPainter, true);
+#endif
+
+// Helper lambdas for config/env
+    auto envIsFalse = [](const char* name){ QByteArray v = qgetenv(name); return (v == "0" || v.compare("false", Qt::CaseInsensitive) == 0); };
+    auto cfgBool = [](const char* key)->std::optional<bool>{ QVariant v = UBSettings::settings()->value(key, QVariant()); if (v.isValid()) return v.toBool(); return std::nullopt; };
+    auto cfgString = [](const char* key)->QString{ QVariant v = UBSettings::settings()->value(key, QVariant()); return v.isValid() ? v.toString() : QString(); };
+    auto cfgInt    = [](const char* key)->std::optional<int>{ QVariant v = UBSettings::settings()->value(key, QVariant()); if (v.isValid()) return v.toInt(); return std::nullopt; };
+
+#if QT_VERSION >= QT_VERSION_CHECK(5, 4, 0)
+    // Enable GPU-accelerated viewport if not explicitly disabled.
+    bool useGlViewport = cfgBool("Perf/GLViewport").value_or(!envIsFalse("OPENBOARD_GL_VIEWPORT"));
+    // Desktop annotation view is translucent; default to software viewport there
+    bool allowDesktopGL = cfgBool("Perf/GLViewportDesktop").value_or(qgetenv("OPENBOARD_GL_VIEWPORT_DESKTOP").toLower() == QByteArray("1") || qgetenv("OPENBOARD_GL_VIEWPORT_DESKTOP").toLower() == QByteArray("true"));
+    if (bIsDesktop && !allowDesktopGL)
+        useGlViewport = false;
+    if (useGlViewport) {
+        QSurfaceFormat fmt;
+        fmt.setRenderableType(QSurfaceFormat::OpenGL);
+        int major = cfgInt("Perf/GLMajor").value_or(3);
+        int minor = cfgInt("Perf/GLMinor").value_or(3);
+        bool core  = cfgBool("Perf/GLCoreProfile").value_or(true);
+        fmt.setVersion(major, minor);
+        fmt.setProfile(core ? QSurfaceFormat::CoreProfile : QSurfaceFormat::CompatibilityProfile);
+        // If running on a translucent desktop overlay, prefer an alpha buffer when explicitly allowed
+        if (bIsDesktop)
+            fmt.setAlphaBufferSize(8);
+        if (auto si = cfgInt("Perf/GLSwapInterval")) fmt.setSwapInterval(*si);
+
+        auto glViewport = new QOpenGLWidget(this);
+        glViewport->setFormat(fmt);
+        glViewport->setAttribute(Qt::WA_OpaquePaintEvent, true);
+        // Optional partial updates to avoid full repaints on Wayland
+        bool partial = cfgBool("Perf/GLPartialUpdate").value_or(!envIsFalse("OPENBOARD_GL_PARTIAL_UPDATE"));
+        if (partial)
+            glViewport->setUpdateBehavior(QOpenGLWidget::PartialUpdate);
+        setViewport(glViewport);
+        setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
+    } else {
+        setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
+    }
+#else
     setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
+#endif
+
+    // Allow overriding viewport update mode via env: smart|minimal|bounding|full
+    QString vumCfg = cfgString("Perf/ViewportUpdateMode");
+    QByteArray vum = !vumCfg.isEmpty() ? vumCfg.toLatin1() : qgetenv("OPENBOARD_VIEWPORT_UPDATE");
+    if (!vum.isEmpty()) {
+        const QByteArray v = vum.toLower();
+        if (v == "smart") setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
+        else if (v == "minimal") setViewportUpdateMode(QGraphicsView::MinimalViewportUpdate);
+        else if (v == "bounding") setViewportUpdateMode(QGraphicsView::BoundingRectViewportUpdate);
+        else if (v == "full") setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
+    }
     setWindowFlags (Qt::FramelessWindowHint);
     setFrameStyle (QFrame::NoFrame);
     setRenderHints (QPainter::Antialiasing | QPainter::SmoothPixmapTransform | QPainter::TextAntialiasing);

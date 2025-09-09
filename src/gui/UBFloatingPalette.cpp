@@ -39,13 +39,22 @@
 #include "core/memcheck.h"
 
 UBFloatingPalette::UBFloatingPalette(Qt::Corner position, QWidget *parent)
-    : QWidget(parent, parent ? Qt::Widget : Qt::Tool | (Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::X11BypassWindowManagerHint))
+    : QWidget(parent)
     , mCustomPosition(false)
     , mIsMoving(false)
     , mCanBeMinimized(false)
     , mMinimizedLocation(eMinimizedLocation_None)
     , mDefaultPosition(position)
 {
+    // Configure window flags based on session type
+    {
+        Qt::WindowFlags flags = parent ? Qt::Widget : Qt::Tool | (Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+        if (UBPlatformUtils::sessionType() != UBPlatformUtils::WAYLAND) {
+            flags |= Qt::X11BypassWindowManagerHint;
+        }
+        setWindowFlags(flags);
+    }
+
     setCursor(Qt::ArrowCursor);
 
     if (parent)

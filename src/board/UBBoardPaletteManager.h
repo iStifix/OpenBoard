@@ -153,6 +153,8 @@ class UBBoardPaletteManager : public QObject
 
         bool mDownloadInProgress;
 
+        
+
     private slots:
 
         void changeBackground();

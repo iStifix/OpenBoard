@@ -35,6 +35,7 @@
 #include <QResizeEvent>
 #include <QSizePolicy>
 #include <QTimer>
+#include "frameworks/UBPlatformUtils.h"
 
 #include "UBMainWindow.h"
 #include "core/UBApplication.h"
@@ -290,12 +291,13 @@ bool UBMainWindow::yesNoQuestion(QString windowTitle, QString text, const QPixma
         messageBox.setIconPixmap(iconPixmap);
 
 
-#ifdef Q_OS_LINUX
-    // to avoid to be handled by x11. This allows us to keep to the back all the windows manager stuff like palette, toolbar ...
-    messageBox.setWindowFlags(Qt::Dialog | Qt::X11BypassWindowManagerHint);
-#else
-    messageBox.setWindowFlags(Qt::Dialog);
-#endif
+    // On Wayland, avoid X11-specific flags
+    if (UBPlatformUtils::sessionType() == UBPlatformUtils::WAYLAND) {
+        messageBox.setWindowFlags(Qt::Dialog);
+    } else {
+        // On X11, bypass the WM to keep other tool windows unaffected
+        messageBox.setWindowFlags(Qt::Dialog | Qt::X11BypassWindowManagerHint);
+    }
 
     messageBox.exec();
     return messageBox.clickedButton() == yesButton;

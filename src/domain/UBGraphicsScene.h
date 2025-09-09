@@ -417,7 +417,7 @@ signals:
         void drawMarkerCircle(const QPointF& pEndPoint);
         void drawPenCircle(const QPointF& pEndPoint);
         void hideMarkerCircle();
-        void hidePenCircle();
+    void hidePenCircle();
         void DisposeMagnifierQWidgets();
 
 
@@ -504,7 +504,13 @@ signals:
         UBGraphicsPolygonItem *mCurrentPolygon;
         UBSelectionFrame *mSelectionFrame;
 
-        UBGraphicsCache* mGraphicsCache;
+    UBGraphicsCache* mGraphicsCache;
+
+    // Flattening layer for strokes (optional)
+public:
+    class UBStrokeFlatteningLayer* strokeFlatteningLayer() const { return mStrokeFlatteningLayer; }
+private:
+    class UBStrokeFlatteningLayer* mStrokeFlatteningLayer = nullptr;
 
         struct PointerState {
             bool mInputDeviceIsPressed = false;

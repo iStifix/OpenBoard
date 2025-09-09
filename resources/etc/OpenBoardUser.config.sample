@@ -1,0 +1,66 @@
+; OpenBoardUser.config (sample)
+; Place this file at:
+;  - Linux:   ~/.local/share/OpenBoard/OpenBoardUser.config
+;  - Windows: %LOCALAPPDATA%/OpenBoard/OpenBoardUser.config
+;  - macOS:   ~/Library/Application Support/OpenBoard/OpenBoardUser.config
+; Keys here override defaults and environment variables at runtime.
+
+[Perf]
+; GPU viewport for the board (QOpenGLWidget). Faster drawing via GPU.
+; Pros: high FPS, offloads CPU. Cons: rare driver issues.
+GLViewport=true
+; Use GL viewport for Desktop overlay (translucent window). Default false for stability.
+GLViewportDesktop=false
+
+; PartialUpdate reduces full repaints on Wayland.
+; Pros: less overdraw. Cons: possible redraw artifacts with some drivers.
+GLPartialUpdate=true
+
+; Viewport update strategy: smart|minimal|bounding|full
+; minimal is fastest, full is safest.
+ViewportUpdateMode=minimal
+
+; OpenGL format for the viewport (applied on creation)
+GLMajor=3
+GLMinor=3
+GLCoreProfile=true
+; 1 = vsync on, 0 = off (lower latency, possible tearing)
+GLSwapInterval=1
+
+; Global pixmap cache in MB: increases caching for large boards.
+; Pros: fewer re-rasterizations. Cons: uses more RAM.
+PixmapCacheMB=256
+
+; Stroke caching (device-coordinate cache for polygons)
+; Pros: much faster redrawing. Cons: more GPU memory.
+Strokes/CacheEnabled=true
+
+; Antialiasing for strokes
+; Pros: smoother lines. Cons: slower; disable to maximize FPS.
+Strokes/Antialiasing=false
+
+; Flatten strokes into tiled pixmaps for GPU compositing
+; Pros: huge speed with many lines. Cons: baked strokes are not individually editable, more memory.
+Strokes/FlattenEnabled=true
+
+; Tile size in pixels for the flattening layer: 512|1024|2048
+; Larger = fewer tiles (faster) but more VRAM per tile.
+Strokes/TileSize=1024
+
+[Perf/WebEngine]
+; Enable GPU for QtWebEngine (Chromium). On ARM64 default is off for stability.
+; Pros: faster video/HTML5. Cons: may crash on unstable drivers.
+EnableGPU=false
+
+; Force Qt Software OpenGL (CPU). Debug fallback.
+; Pros: maximum compatibility. Cons: slow.
+ForceSoftware=false
+
+; Notes
+; - Changes require application restart.
+; - Environment variables (if set) may take precedence where GL is created before config is loaded.
+; - Environment variable equivalents:
+;   OPENBOARD_GL_VIEWPORT, OPENBOARD_GL_PARTIAL_UPDATE, OPENBOARD_VIEWPORT_UPDATE,
+;   OPENBOARD_GL_SWAP_INTERVAL, OPENBOARD_PIXMAP_CACHE_MB,
+;   OPENBOARD_STROKE_CACHE, OPENBOARD_STROKE_AA,
+;   OPENBOARD_STROKE_FLATTEN, OPENBOARD_STROKE_TILE_SIZE.

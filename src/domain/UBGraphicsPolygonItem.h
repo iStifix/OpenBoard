@@ -136,6 +136,7 @@ class UBGraphicsPolygonItem : public QGraphicsPolygonItem, public UBItem
 
     protected:
         void paint ( QPainter * painter, const QStyleOptionGraphicsItem * option, QWidget * widget);
+        QPainterPath opaqueArea() const override;
 
 
     private:

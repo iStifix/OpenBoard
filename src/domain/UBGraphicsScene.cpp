@@ -34,6 +34,8 @@
 #include <QGraphicsView>
 #include <QGraphicsVideoItem>
 #include <QSet>
+#include <QUndoStack>
+#include <algorithm>
 
 #include "frameworks/UBGeometryUtils.h"
 
@@ -78,6 +80,7 @@
 #include "domain/UBGraphicsGroupContainerItem.h"
 
 #include "UBGraphicsStroke.h"
+#include "UBStrokeFlatteningLayer.h"
 
 #include "core/memcheck.h"
 
@@ -367,8 +370,31 @@ UBGraphicsScene::UBGraphicsScene(std::shared_ptr<UBDocumentProxy> document, bool
 //    Just for debug. Do not delete please
 //    connect(this, SIGNAL(selectionChanged()), this, SLOT(selectionChangedProcessing()));
     connect(UBApplication::undoStack.data(), SIGNAL(indexChanged(int)), this, SLOT(updateSelectionFrameWrapper(int)));
+    if (UBApplication::undoStack && mStrokeFlatteningLayer) {
+        connect(UBApplication::undoStack.data(), &QUndoStack::indexChanged, this, [this](int){
+            if (mStrokeFlatteningLayer && mStrokeFlatteningLayer->isEnabled())
+                mStrokeFlatteningLayer->rebuildFromScene();
+        });
+    }
     connect(UBDrawingController::drawingController(), SIGNAL(stylusToolChanged(int,int)), this, SLOT(stylusToolChanged(int,int)));
     connect(UBApplication::boardController, &UBBoardController::zoomChanged, this, &UBGraphicsScene::zoomChanged);
+
+    // Initialize optional stroke flattening layer
+    bool flattenEnabled = true;
+    QVariant cfgFlatten = UBSettings::settings()->value("Perf/Strokes/FlattenEnabled", QVariant());
+    if (cfgFlatten.isValid()) flattenEnabled = cfgFlatten.toBool();
+    else flattenEnabled = (!qEnvironmentVariableIsSet("OPENBOARD_STROKE_FLATTEN") || qgetenv("OPENBOARD_STROKE_FLATTEN") != "0");
+    if (flattenEnabled) {
+        int ts = 1024;
+        QVariant cfgTile = UBSettings::settings()->value("Perf/Strokes/TileSize", QVariant());
+        if (cfgTile.isValid()) ts = cfgTile.toInt();
+        else {
+            bool ok = false;
+            int envTs = qEnvironmentVariableIntValue("OPENBOARD_STROKE_TILE_SIZE", &ok);
+            if (ok && envTs > 0) ts = envTs;
+        }
+        mStrokeFlatteningLayer = new UBStrokeFlatteningLayer(this, ts, this);
+    }
 }
 
 UBGraphicsScene::~UBGraphicsScene()
@@ -789,6 +815,11 @@ bool UBGraphicsScene::inputDeviceReleaseImpl(int tool, Qt::KeyboardModifiers mod
             mAddedItems << pStrokes;
             addItem(pStrokes);
 
+            // Optionally flatten strokes into cached tiles for GPU compositing
+            if (mStrokeFlatteningLayer && mStrokeFlatteningLayer->isEnabled()) {
+                mStrokeFlatteningLayer->flattenGroup(pStrokes);
+            }
+
             mDrawWithCompass = false;
         }
         else if (mCurrentStroke){
@@ -1154,8 +1185,17 @@ void UBGraphicsScene::eraseLineTo(const QPointF &pEndPoint, const qreal &pWidth)
     QSet<QGraphicsItem*> fullyContained(itemsList.cbegin(), itemsList.cend());
     fullyContained.remove(mEraser);
 
+    // Apply eraser also to flattened stroke tiles (if present)
+    if (mStrokeFlatteningLayer) {
+        mStrokeFlatteningLayer->erase(eraserPath);
+    }
+
     QList<QGraphicsItem*> collidItems = items(eraserPath, Qt::IntersectsItemShape);
     collidItems.removeOne(mEraser);
+    // Remove flattened tiles from vector erasing pass
+    collidItems.erase(std::remove_if(collidItems.begin(), collidItems.end(), [](QGraphicsItem* it){
+        return it->type() == UBStrokeTileItem::Type;
+    }), collidItems.end());
 
     QList<UBGraphicsPolygonItem*> intersectedItems;
 
