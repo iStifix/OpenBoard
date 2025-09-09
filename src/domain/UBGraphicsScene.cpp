@@ -961,6 +961,13 @@ bool UBGraphicsScene::inputDeviceReleaseImpl(int tool, Qt::KeyboardModifiers mod
 
     mInputDeviceIsPressed = false;
 
+    // Clear visual trail overlay after erasing gesture
+    if (currentTool == UBStylusTool::Eraser && mEraserTrail)
+    {
+        mEraserTrailPath = QPainterPath();
+        mEraserTrail->setPath(mEraserTrailPath);
+    }
+
     setDocumentUpdated();
 
     if (mCurrentStroke && mCurrentStroke->polygons().empty()){

@@ -450,6 +450,9 @@ signals:
         QGraphicsEllipseItem* mPointer; // "laser" pointer
         QGraphicsEllipseItem* mMarkerCircle; // dotted circle around marker
         QGraphicsEllipseItem* mPenCircle; // dotted circle around pen
+        // Lightweight visual trail for the eraser during gesture
+        QGraphicsPathItem* mEraserTrail = nullptr;
+        QPainterPath mEraserTrailPath;
 
         QSet<QGraphicsItem*> mAddedItems;
         QSet<QGraphicsItem*> mRemovedItems;
