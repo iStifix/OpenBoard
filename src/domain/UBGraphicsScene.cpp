@@ -395,6 +395,9 @@ UBGraphicsScene::UBGraphicsScene(std::shared_ptr<UBDocumentProxy> document, bool
         }
         mStrokeFlatteningLayer = new UBStrokeFlatteningLayer(this, ts, this);
     }
+    // Eraser behavior (raster-first for responsiveness; commit vector ops on release)
+    mEraseRasterFirst = UBSettings::settings()->value("Perf/Strokes/EraseRasterFirst", true).toBool();
+    mEraseCommitOnRelease = UBSettings::settings()->value("Perf/Strokes/EraseCommitOnRelease", true).toBool();
 }
 
 UBGraphicsScene::~UBGraphicsScene()
@@ -556,6 +559,7 @@ bool UBGraphicsScene::inputDevicePressImpl(const QPointF& scenePos, const qreal&
             mAddedItems.clear();
             mRemovedItems.clear();
             moveTo(scenePos);
+            mEraserAccumulatedPath = QPainterPath();
 
             qreal eraserWidth = UBSettings::settings()->currentEraserWidth();
             eraserWidth /= UBApplication::boardController->systemScaleFactor();
@@ -863,6 +867,83 @@ bool UBGraphicsScene::inputDeviceReleaseImpl(int tool, Qt::KeyboardModifiers mod
         }
     }
 
+    // Commit eraser vector changes on release (optional)
+    if (currentTool == UBStylusTool::Eraser && !mEraserAccumulatedPath.isEmpty() && mEraseCommitOnRelease)
+    {
+        QPainterPath acc = mEraserAccumulatedPath;
+        const auto itemsList = items(acc, Qt::ContainsItemShape);
+        QSet<QGraphicsItem*> fullyContained(itemsList.cbegin(), itemsList.cend());
+        fullyContained.remove(mEraser);
+
+        QList<QGraphicsItem*> collidItems = items(acc, Qt::IntersectsItemShape);
+        collidItems.removeOne(mEraser);
+        collidItems.erase(std::remove_if(collidItems.begin(), collidItems.end(), [](QGraphicsItem* it){
+            return it->type() == UBStrokeTileItem::Type;
+        }), collidItems.end());
+
+        QList<UBGraphicsPolygonItem*> intersectedItems;
+        QList<QList<QPolygonF>> intersectedPolygons;
+        for (int i = 0; i < collidItems.size(); i++)
+        {
+            UBGraphicsPolygonItem *pi = qgraphicsitem_cast<UBGraphicsPolygonItem *>(collidItems[i]);
+            if (!pi)
+                continue;
+            if (fullyContained.contains(pi))
+            {
+                intersectedItems << pi;
+                intersectedPolygons << QList<QPolygonF>();
+            }
+            else
+            {
+                QPainterPath itemPainterPath;
+                itemPainterPath.addPolygon(pi->sceneTransform().map(pi->polygon()));
+                itemPainterPath.setFillRule(Qt::WindingFill);
+                QPainterPath newPath = itemPainterPath.subtracted(acc);
+                intersectedItems << pi;
+                intersectedPolygons << newPath.simplified().toFillPolygons(pi->sceneTransform().inverted());
+            }
+        }
+        for(int i=0; i<intersectedItems.size(); i++)
+        {
+            UBGraphicsPolygonItem *intersectedPolygonItem = intersectedItems[i];
+            if (!intersectedPolygons[i].empty())
+            {
+                for(int j = 0; j < intersectedPolygons[i].size(); j++)
+                {
+                    UBGraphicsPolygonItem* polygonItem = new UBGraphicsPolygonItem(intersectedPolygons[i][j], intersectedPolygonItem->parentItem());
+                    intersectedPolygonItem->copyItemParameters(polygonItem);
+                    polygonItem->setNominalLine(false);
+                    polygonItem->setStroke(intersectedPolygonItem->stroke());
+                    if (intersectedPolygonItem->strokesGroup())
+                    {
+                        polygonItem->setStrokesGroup(intersectedPolygonItem->strokesGroup());
+                        intersectedPolygonItem->strokesGroup()->addToGroup(polygonItem);
+                    }
+                    mAddedItems << polygonItem;
+                }
+            }
+            mRemovedItems << intersectedPolygonItem;
+            QTransform t;
+            bool bApplyTransform = false;
+            if (intersectedPolygonItem->strokesGroup())
+            {
+                if (intersectedPolygonItem->strokesGroup()->parentItem())
+                {
+                    bApplyTransform = true;
+                    t = intersectedPolygonItem->sceneTransform();
+                }
+                intersectedPolygonItem->strokesGroup()->removeFromGroup(intersectedPolygonItem);
+            }
+            removeItem(intersectedPolygonItem);
+            if (bApplyTransform)
+                intersectedPolygonItem->setTransform(t);
+        }
+        if (!intersectedItems.empty())
+            setModified(true);
+        update(acc.boundingRect());
+        mEraserAccumulatedPath = QPainterPath();
+    }
+
     if (mRemovedItems.size() > 0 || mAddedItems.size() > 0)
     {
         if (mUndoRedoStackEnabled) { //should be deleted after scene own undo stack implemented
@@ -905,6 +986,7 @@ bool UBGraphicsScene::palmPressImpl(const QPointF& scenePos, const qreal& diamet
         eraserWidth /= UBApplication::boardController->systemScaleFactor();
         eraserWidth /= UBApplication::boardController->currentZoom();
         moveTo(scenePos);
+        mEraserAccumulatedPath = QPainterPath();
         eraseLineTo(scenePos, eraserWidth);
         accepted = true;
     }
@@ -931,6 +1013,85 @@ bool UBGraphicsScene::palmReleaseImpl()
     if (mInputDeviceIsPressed)
     {
         hideEraser();
+        // Commit vector changes once per gesture (optional)
+        if (!mEraserAccumulatedPath.isEmpty() && mEraseCommitOnRelease)
+        {
+            QPainterPath acc = mEraserAccumulatedPath;
+            const auto itemsList = items(acc, Qt::ContainsItemShape);
+            QSet<QGraphicsItem*> fullyContained(itemsList.cbegin(), itemsList.cend());
+            fullyContained.remove(mEraser);
+
+            QList<QGraphicsItem*> collidItems = items(acc, Qt::IntersectsItemShape);
+            collidItems.removeOne(mEraser);
+            collidItems.erase(std::remove_if(collidItems.begin(), collidItems.end(), [](QGraphicsItem* it){
+                return it->type() == UBStrokeTileItem::Type;
+            }), collidItems.end());
+
+            QList<UBGraphicsPolygonItem*> intersectedItems;
+            QList<QList<QPolygonF>> intersectedPolygons;
+
+            for (int i = 0; i < collidItems.size(); i++)
+            {
+                UBGraphicsPolygonItem *pi = qgraphicsitem_cast<UBGraphicsPolygonItem *>(collidItems[i]);
+                if (!pi)
+                    continue;
+                if (fullyContained.contains(pi))
+                {
+                    intersectedItems << pi;
+                    intersectedPolygons << QList<QPolygonF>();
+                }
+                else
+                {
+                    QPainterPath itemPainterPath;
+                    itemPainterPath.addPolygon(pi->sceneTransform().map(pi->polygon()));
+                    itemPainterPath.setFillRule(Qt::WindingFill);
+                    QPainterPath newPath = itemPainterPath.subtracted(acc);
+                    intersectedItems << pi;
+                    intersectedPolygons << newPath.simplified().toFillPolygons(pi->sceneTransform().inverted());
+                }
+            }
+
+            for(int i=0; i<intersectedItems.size(); i++)
+            {
+                UBGraphicsPolygonItem *intersectedPolygonItem = intersectedItems[i];
+                if (!intersectedPolygons[i].empty())
+                {
+                    for(int j = 0; j < intersectedPolygons[i].size(); j++)
+                    {
+                        UBGraphicsPolygonItem* polygonItem = new UBGraphicsPolygonItem(intersectedPolygons[i][j], intersectedPolygonItem->parentItem());
+                        intersectedPolygonItem->copyItemParameters(polygonItem);
+                        polygonItem->setNominalLine(false);
+                        polygonItem->setStroke(intersectedPolygonItem->stroke());
+                        if (intersectedPolygonItem->strokesGroup())
+                        {
+                            polygonItem->setStrokesGroup(intersectedPolygonItem->strokesGroup());
+                            intersectedPolygonItem->strokesGroup()->addToGroup(polygonItem);
+                        }
+                        mAddedItems << polygonItem;
+                    }
+                }
+                mRemovedItems << intersectedPolygonItem;
+                QTransform t;
+                bool bApplyTransform = false;
+                if (intersectedPolygonItem->strokesGroup())
+                {
+                    if (intersectedPolygonItem->strokesGroup()->parentItem())
+                    {
+                        bApplyTransform = true;
+                        t = intersectedPolygonItem->sceneTransform();
+                    }
+                    intersectedPolygonItem->strokesGroup()->removeFromGroup(intersectedPolygonItem);
+                }
+                removeItem(intersectedPolygonItem);
+                if (bApplyTransform)
+                    intersectedPolygonItem->setTransform(t);
+            }
+
+            if (!intersectedItems.empty())
+                setModified(true);
+            update(acc.boundingRect());
+            mEraserAccumulatedPath = QPainterPath();
+        }
         mInputDeviceIsPressed = false;
         accepted = true;
     }
@@ -1179,6 +1340,8 @@ void UBGraphicsScene::eraseLineTo(const QPointF &pEndPoint, const qreal &pWidth)
 
     QPainterPath eraserPath;
     eraserPath.addPolygon(eraserPolygon);
+    // accumulate for single commit on release
+    mEraserAccumulatedPath = mEraserAccumulatedPath.united(eraserPath);
 
     // Retrieve items affected by the eraser path
     const auto itemsList = items(eraserPath, Qt::ContainsItemShape);
@@ -1188,6 +1351,10 @@ void UBGraphicsScene::eraseLineTo(const QPointF &pEndPoint, const qreal &pWidth)
     // Apply eraser also to flattened stroke tiles (if present)
     if (mStrokeFlatteningLayer) {
         mStrokeFlatteningLayer->erase(eraserPath);
+        if (mEraseRasterFirst) {
+            update(eraserBoundingRect);
+            return;
+        }
     }
 
     QList<QGraphicsItem*> collidItems = items(eraserPath, Qt::IntersectsItemShape);

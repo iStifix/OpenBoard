@@ -511,6 +511,10 @@ public:
     class UBStrokeFlatteningLayer* strokeFlatteningLayer() const { return mStrokeFlatteningLayer; }
 private:
     class UBStrokeFlatteningLayer* mStrokeFlatteningLayer = nullptr;
+    // Eraser behavior tuning
+    QPainterPath mEraserAccumulatedPath;
+    bool mEraseRasterFirst = true;           // draw-time: erase on raster tiles only
+    bool mEraseCommitOnRelease = true;       // after release: apply vector boolean ops once
 
         struct PointerState {
             bool mInputDeviceIsPressed = false;
