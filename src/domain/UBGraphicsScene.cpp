@@ -58,6 +58,7 @@
 #include "tools/UBGraphicsCache.h"
 
 #include "document/UBDocumentProxy.h"
+#include <QGraphicsPathItem>
 
 #include "board/UBBoardController.h"
 #include "board/UBDrawingController.h"
@@ -561,9 +562,22 @@ bool UBGraphicsScene::inputDevicePressImpl(const QPointF& scenePos, const qreal&
             moveTo(scenePos);
             mEraserAccumulatedPath = QPainterPath();
 
+            // Setup lightweight eraser trail overlay (solid background color to mimic real erase)
             qreal eraserWidth = UBSettings::settings()->currentEraserWidth();
             eraserWidth /= UBApplication::boardController->systemScaleFactor();
             eraserWidth /= UBApplication::boardController->currentZoom();
+            if (!mEraserTrail) {
+                mEraserTrail = new QGraphicsPathItem();
+                mEraserTrail->setZValue(1e6); // ensure on top of strokes
+                mEraserTrail->setAcceptedMouseButtons(Qt::NoButton);
+                addItem(mEraserTrail);
+            }
+            mEraserTrailPath = QPainterPath(scenePos);
+            // Pick background color depending on page to simulate real-time erase fully opaque
+            QColor trailColor = UBSettings::settings()->isDarkBackground() ? QColor(0,0,0) : QColor(255,255,255);
+            QPen pen(trailColor, eraserWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+            mEraserTrail->setPen(pen);
+            mEraserTrail->setPath(mEraserTrailPath);
 
             eraseLineTo(scenePos, eraserWidth);
             drawEraser(scenePos, mInputDeviceIsPressed);
@@ -1349,6 +1363,16 @@ void UBGraphicsScene::eraseLineTo(const QPointF &pEndPoint, const qreal &pWidth)
     eraserPath.addPolygon(eraserPolygon);
     // accumulate for single commit on release
     mEraserAccumulatedPath = mEraserAccumulatedPath.united(eraserPath);
+    // Update visual trail cheaply
+    if (mEraserTrail) {
+        mEraserTrailPath.lineTo(pEndPoint);
+        QPen pen = mEraserTrail->pen();
+        if (std::abs(pWidth - pen.widthF()) > 0.5) {
+            pen.setWidthF(pWidth);
+            mEraserTrail->setPen(pen);
+        }
+        mEraserTrail->setPath(mEraserTrailPath);
+    }
 
     // Retrieve items affected by the eraser path
     const auto itemsList = items(eraserPath, Qt::ContainsItemShape);
