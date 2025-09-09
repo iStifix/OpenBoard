@@ -46,7 +46,6 @@ private:
     UBGraphicsScene* m_scene;
     int m_tileSize;
     bool m_enabled;
-    qreal m_z;
 
     // Keyed by tile index (ix,iy)
     QHash<QPoint, UBStrokeTileItem*> m_tiles;

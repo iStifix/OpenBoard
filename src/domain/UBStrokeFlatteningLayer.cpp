@@ -9,6 +9,7 @@
 #include <QScreen>
 
 #include "UBGraphicsScene.h"
+#include "UBItem.h"
 #include "UBGraphicsStrokesGroup.h"
 #include "UBGraphicsPolygonItem.h"
 #include "core/UB.h"
@@ -24,7 +25,6 @@ UBStrokeFlatteningLayer::UBStrokeFlatteningLayer(UBGraphicsScene* scene, int til
     , m_scene(scene)
     , m_tileSize(tileSize)
     , m_enabled(true)
-    , m_z(1.0)
 {
     if (!scene)
         m_enabled = false;
@@ -64,7 +64,6 @@ UBStrokeTileItem* UBStrokeFlatteningLayer::ensureTile(const QPoint& ti)
     // Place tile at its scene offset (top-left), no transform
     const QRectF r = tileRect(ti, m_tileSize);
     tile->setOffset(r.topLeft());
-    tile->setZValue(m_z);
     tile->setTransformationMode(Qt::FastTransformation);
     tile->setData(UBGraphicsItemData::itemLayerType, QVariant(itemLayerType::DrawingItem));
     tile->setAcceptedMouseButtons(Qt::NoButton);
@@ -113,6 +112,9 @@ void UBStrokeFlatteningLayer::drawPolygonItemToTiles(UBGraphicsPolygonItem* item
 
             tile->setPixmap(pm);
             tile->update();
+            // Raise touched tile to the top of drawing stack to preserve
+            // expected layering of the most recent stroke across tile borders.
+            UBGraphicsItem::assignZValue(tile, tile->zValue() + 1);
         }
     }
 }
