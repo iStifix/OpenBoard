@@ -112,9 +112,9 @@ void UBStrokeFlatteningLayer::drawPolygonItemToTiles(UBGraphicsPolygonItem* item
 
             tile->setPixmap(pm);
             tile->update();
-            // Raise touched tile to the top of drawing stack to preserve
-            // expected layering of the most recent stroke across tile borders.
-            UBGraphicsItem::assignZValue(tile, tile->zValue() + 1);
+            // Ensure this tile sits on top of the Drawing layer
+            if (m_scene)
+                m_scene->changeZLevelTo(tile, UBZLayerController::top);
         }
     }
 }
