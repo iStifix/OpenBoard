@@ -287,12 +287,12 @@ void UBSettings::init()
     boardUseHighResTabletEvent = new UBSetting(this, "Board", "UseHighResTabletEvent", true);
 
     boardInterpolatePenStrokes = new UBSetting(this, "Board", "InterpolatePenStrokes", true);
-    boardSimplifyPenStrokes = new UBSetting(this, "Board", "SimplifyPenStrokes", true);
+    boardSimplifyPenStrokes = new UBSetting(this, "Board", "SimplifyPenStrokes", false);
     boardSimplifyPenStrokesThresholdAngle = new UBSetting(this, "Board", "SimplifyPenStrokesThresholdAngle", 2);
     boardSimplifyPenStrokesThresholdWidthDifference = new UBSetting(this, "Board", "SimplifyPenStrokesThresholdWidthDifference", 2.0);
 
     boardInterpolateMarkerStrokes = new UBSetting(this, "Board", "InterpolateMarkerStrokes", true);
-    boardSimplifyMarkerStrokes = new UBSetting(this, "Board", "SimplifyMarkerStrokes", true);
+    boardSimplifyMarkerStrokes = new UBSetting(this, "Board", "SimplifyMarkerStrokes", false);
 
     boardKeyboardPaletteKeyBtnSize = new UBSetting(this, "Board", "KeyboardPaletteKeyBtnSize", "16x16");
     ValidateKeyboardPaletteKeyBtnSize();
