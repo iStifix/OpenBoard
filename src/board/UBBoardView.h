@@ -32,6 +32,7 @@
 #define CONTROLVIEW_OBJ_NAME "ControlView"
 
 #include <QtGui>
+#include <QElapsedTimer>
 #include <QGraphicsView>
 #include <QRubberBand>
 
@@ -157,6 +158,13 @@ private:
 
     QSet<int> mPalmContacts;
     QSet<int> mActiveTouches;
+    // Cooldown after palm release to avoid stray taps
+    QElapsedTimer mPalmClock;
+    qint64 mPalmCooldownUntilMs = 0;
+    int mPalmCooldownMs = 180; // configurable via Input/PalmReleaseCooldownMs
+    // Palm classification thresholds
+    int mPalmThresholdPx = 130;      // configurable via Input/PalmThresholdPx or Input/PalmThresholdMm
+    double mPalmPreThresholdFactor = 0.7; // if multiple touches, treat as palm at 70% of threshold
 
     QRubberBand *mRubberBand;
     bool mIsCreatingTextZone;

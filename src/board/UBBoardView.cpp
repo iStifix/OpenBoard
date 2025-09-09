@@ -265,6 +265,10 @@ void UBBoardView::init ()
 
     setMovingItem(NULL);
     mWidgetMoved = false;
+
+    // Palm cooldown: read config and start clock
+    mPalmCooldownMs = UBSettings::settings()->value("Input/PalmReleaseCooldownMs", 180).toInt();
+    mPalmClock.start();
 }
 
 std::shared_ptr<UBGraphicsScene> UBBoardView::scene ()
@@ -390,7 +394,36 @@ bool UBBoardView::event(QEvent* e)
 #else
         const auto points = touchEvent->touchPoints();
 #endif
+        bool palmReleasedThisEvent = false;
+        // Pre-scan for palm releases to block stray finger taps within same event
+        {
+            for (const auto &tp : points) {
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+                QPoint  local  = tp.position().toPoint();
+                QPoint  global = viewport()->mapToGlobal(local);
+                auto    state  = tp.state();
+                bool released  = (state == QEventPoint::Released);
+#else
+                QPoint  local  = tp.pos().toPoint();
+                QPoint  global = viewport()->mapToGlobal(local);
+                auto    state  = tp.state();
+                bool released  = (state & Qt::TouchPointReleased);
+#endif
+                if (!released && e->type() != QEvent::TouchCancel)
+                    continue;
+                int   id       = tp.id();
+                const int searchRadiusPx  = 80;
+                const int palmThresholdPx = 130;
+                bool isPalmId = mPalmContacts.contains(id);
+                if (!isPalmId) {
+                    int diameterPx = UBEvdevTouch::instance()->majorNearGlobal(global, searchRadiusPx);
+                    isPalmId = (diameterPx >= palmThresholdPx);
+                }
+                if (isPalmId) palmReleasedThisEvent = true;
+            }
+        }
         if (scene()) {
+            const qint64 now = mPalmClock.elapsed();
             for (const auto &tp : points) {
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
                 QPoint  local  = tp.position().toPoint();
@@ -413,7 +446,7 @@ bool UBBoardView::event(QEvent* e)
                 int   id       = tp.id();
 
                 const int searchRadiusPx  = 80;   // радиус поиска соответствующего слота
-                const int palmThresholdPx = 130;  // ~120–220 для панели
+                const int palmThresholdPx = mPalmThresholdPx;  // ~120–220 для панели
                 int diameterPx = UBEvdevTouch::instance()->majorNearGlobal(global, searchRadiusPx);
 
                 bool isPalm = mPalmContacts.contains(id);
@@ -423,13 +456,28 @@ bool UBBoardView::event(QEvent* e)
 
                 if (pressed) {
                     isPalm = (diameterPx >= palmThresholdPx);
+                    // Assist detection when multiple touches present: accept lower threshold
+                    int activeCount = points.size();
+                    if (!isPalm && activeCount >= 2) {
+                        int preThresh = int(palmThresholdPx * mPalmPreThresholdFactor);
+                        if (diameterPx >= preThresh) isPalm = true;
+                    }
                     if (isPalm) mPalmContacts.insert(id);
                 }
 
                 if (released || e->type() == QEvent::TouchCancel) {
-                    if (isPalm) scene()->palmRelease(id);
+                    if (isPalm) {
+                        scene()->palmRelease(id);
+                        // start cooldown to suppress stray taps
+                        mPalmCooldownUntilMs = now + mPalmCooldownMs;
+                    }
                     else        scene()->inputDeviceRelease(id, -1, Qt::NoModifier);
                     mPalmContacts.remove(id);
+                    continue;
+                }
+
+                // During cooldown, ignore non-palm touches
+                if (!isPalm && (palmReleasedThisEvent || now < mPalmCooldownUntilMs)) {
                     continue;
                 }
 
